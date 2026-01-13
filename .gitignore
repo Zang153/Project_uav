@@ -32,5 +32,4 @@ ENV/
 *.pt
 *.bin
 data/
-models/
 logs/
