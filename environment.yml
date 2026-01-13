@@ -1,0 +1,13 @@
+name: delta_sim
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - numpy
+  - scipy
+  - matplotlib
+  - pip
+  - pip:
+    - mujoco>=3.0.0
+    - numpy-quaternion
