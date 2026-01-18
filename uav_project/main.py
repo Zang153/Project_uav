@@ -39,7 +39,7 @@ def main():
     logger = Logger()
     
     # 3. Initialize Simulator (loads model)
-    import mujoco
+    # import mujoco
     print(f"Loading model from: {model_path}")
     mj_model = mujoco.MjModel.from_xml_path(model_path)
     mj_data = mujoco.MjData(mj_model)

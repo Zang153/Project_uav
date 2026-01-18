@@ -302,9 +302,9 @@
     <motor name="rotor2" gear="0 0 1 0. 0. -1" site="motor3"/>
     <motor name="rotor3" gear="0 0 1 0. 0.  1" site="motor4"/>    
       
-    <position name="armmotor1" joint="motor_arm_joint1" kp="100" kv="10" />
-    <position name="armmotor2" joint="motor_arm_joint2" kp="100" kv="10" />
-    <position name="armmotor3" joint="motor_arm_joint3" kp="100" kv="10" />
+    <position name="armmotor1" joint="motor_arm_joint1" kp="100" kv="10" ctrllimited="true" ctrlrange="-1.57 0.523"/>
+    <position name="armmotor2" joint="motor_arm_joint2" kp="100" kv="10" ctrllimited="true" ctrlrange="-1.57 0.523"/>
+    <position name="armmotor3" joint="motor_arm_joint3" kp="100" kv="10" ctrllimited="true" ctrlrange="-1.57 0.523"/>
     <!-- ctrllimited="true" ctrlrange="-1.8 1" -->
     <!-- <velocity name="motor1_vel" joint="motor_arm_joint1" kv="35"/>
     <velocity name="motor2_vel" joint="motor_arm_joint2" kv="35"/>

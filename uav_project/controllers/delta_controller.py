@@ -36,9 +36,9 @@ class DeltaController:
                                # Let's check workspace. Z ~ -0.15. 
                                # Max reach is roughly L+l = 0.3.
                                # 0.1m radius at z=-0.15: sqrt(0.1^2 + 0.15^2) = 0.18 < 0.3. Should be fine.
-        self.traj_radius = 0.1
-        self.traj_z = -0.25
-        self.traj_period = 25.0 # seconds for one circle
+        self.traj_radius = 0.01
+        self.traj_z = -0.22
+        self.traj_period = 5.0 # seconds for one circle
         
         self.last_update_time = 0.0
         
@@ -119,10 +119,11 @@ class DeltaController:
             
             print(f"current_pos: {current_pos}")
             # 2. Get desired state
-            des_pos, des_vel = self.get_circular_trajectory(sim_time)
+            # des_pos, des_vel = self.get_circular_trajectory(sim_time)
+            des_pos = [0.05, 0.0, -0.25]
             print(f"des_pos: {des_pos}")
 
-            des_pos = [0, 0, -0.35]
+            
             # 3. Calculate Controls
             if self.control_mode == 'position':
                 # Position Control: Desired Pos -> IK -> Joint Angles -> Motor Positions

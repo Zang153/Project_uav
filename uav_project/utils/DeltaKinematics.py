@@ -1,5 +1,4 @@
 from uav_project.utils.SimpleMath import tand, sind, cosd
-
 import numpy as np 
 # import matplotlib.pyplot as plt 
 # import time 
@@ -80,6 +79,7 @@ class DeltaKinematics:
 
 	def ik(self, _3d_pose):
 		# calculates IK, returns theta(deg)		
+		# Frame in Delta manipulator is different from the Frame in the UAV. Need to transform.
 		rod_ee = self.rod_ee
 		rod_b = self.rod_b
 		r_ee = self.r_ee
@@ -93,6 +93,7 @@ class DeltaKinematics:
         # Frame Transform
 		mat = np.array([[0, 1, 0], [-1, 0, 0], [0, 0, 1]])
 		pos = np.dot(mat,_3d_pose)
+		print(pos)
 		[x0, y0, z0] = pos	
 	
 		for i in [0, 1, 2]:
@@ -125,5 +126,4 @@ class DeltaKinematics:
 			F1_y = -r_b
 
 			theta[i] = math.atan(-J1_z/(F1_y - J1_y))*180/pi
-
-		return np.array(theta)
+		return np.array(theta)*(-1) # The definition of +/- is opposite.
