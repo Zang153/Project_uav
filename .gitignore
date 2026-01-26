@@ -34,6 +34,6 @@ ENV/
 data/
 logs/
 
-# Simulation outputs
+# Simulation outputs and Log files
 MUJOCO_LOG.TXT
 simulation_results.png
