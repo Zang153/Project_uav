@@ -31,23 +31,32 @@ class UAVModel:
         if self.body_id == -1:
             raise ValueError(f"Body '{body_name}' not found in model.")
         
-        # Get base ID
+        # Check if Delta arm exists
         self.base_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, base_name)
-        if self.base_id == -1:
-            raise ValueError(f"Base body '{base_name}' not found in model.")
-        
-        # Get end platform ID
         self.end_platform_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, end_platform_name)
-        if self.end_platform_id == -1:
-            raise ValueError(f"End platform '{end_platform_name}' not found in model.")
-            
-        # Get ee_pos sensor ID
-        self.ee_sensor_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_SENSOR, "ee_pos")
+        
+        if self.base_id != -1 and self.end_platform_id != -1:
+            self.has_delta = True
+            self.ee_sensor_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_SENSOR, "ee_pos")
+            self.ee_lin_vel_sensor_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_SENSOR, "ee_lin_vel")
+        else:
+            self.has_delta = False
+            self.ee_sensor_id = -1
+            self.ee_lin_vel_sensor_id = -1
 
-        # Get ee_lin_vel sensor ID
-        self.ee_lin_vel_sensor_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_SENSOR, "ee_lin_vel")
 
 
+    def get_mass(self):
+        """
+        Returns the subtree mass of the UAV body.
+        """
+        return self.model.body_subtreemass[self.body_id]
+
+    def get_inertia(self):
+        """
+        Returns the diagonal inertia of the UAV body.
+        """
+        return self.model.body_inertia[self.body_id]
 
     def get_uav_state(self):
         """
@@ -91,6 +100,9 @@ class UAVModel:
             End_platform_velocity: [vx, vy, vz] (World frame)
 
         """
+        if not getattr(self, 'has_delta', False):
+            return np.zeros(3), np.zeros(3), np.zeros(3), np.zeros(3), np.zeros(3), np.zeros(3)
+
         # Position [x, y, z] (World frame)
         End_platform_position = self.data.body(self.end_platform_id).xpos.copy()
         
@@ -154,9 +166,8 @@ class UAVModel:
         if self.ee_sensor_id != -1:
             adr = self.model.sensor_adr[self.ee_sensor_id]
             dim = self.model.sensor_dim[self.ee_sensor_id]
-        
-        return self.data.sensordata[adr:adr+dim].copy() 
-    
+            return self.data.sensordata[adr:adr+dim].copy() 
+        return np.zeros(3)
 
     def get_ee_sensor_lin_vel(self):
         """
@@ -166,8 +177,8 @@ class UAVModel:
         if self.ee_lin_vel_sensor_id != -1:
             adr = self.model.sensor_adr[self.ee_lin_vel_sensor_id]
             dim = self.model.sensor_dim[self.ee_lin_vel_sensor_id]
-            
-        return self.data.sensordata[adr:adr+dim].copy() 
+            return self.data.sensordata[adr:adr+dim].copy() 
+        return np.zeros(3) 
         
 
     def apply_simplified_controls(self, force_vector, torque_vector):

@@ -4,6 +4,7 @@ Trajectory generation utilities for UAV simulation.
 
 import math
 from typing import List, Tuple
+import torch
 
 def generate_circular_trajectory(
     center: List[float],  # Center coordinates [x, y, z]
@@ -47,17 +48,17 @@ def generate_circular_trajectory(
         
         # Current angle
         if num_points > 1:
-            angle = start_angle + direction * 2 * math.pi * i / (num_points - 1)
+            angle = torch.tensor(start_angle + direction * 2 * torch.pi * i / (num_points - 1), dtype=torch.float32)
         else:
-            angle = start_angle
+            angle = torch.tensor(start_angle, dtype=torch.float32)
         
         # Calculate Position
-        x = center[0] + radius * math.cos(angle)
-        y = center[1] + radius * math.sin(angle)
+        x = center[0] + radius * torch.cos(angle).item()
+        y = center[1] + radius * torch.sin(angle).item()
         
         # Calculate Z
         if height_variation:
-            z = center[2] + height_amplitude * math.sin(angle * 2)
+            z = center[2] + height_amplitude * torch.sin(angle * 2).item()
         else:
             z = center[2]
         
@@ -103,14 +104,14 @@ def generate_spiral_trajectory(
         t = i * total_time / (num_points - 1) if num_points > 1 else 0
         
         # Current angle (multiple turns)
-        angle = direction * 2 * math.pi * num_turns * i / (num_points - 1)
+        angle = torch.tensor(direction * 2 * torch.pi * num_turns * i / (num_points - 1), dtype=torch.float32)
         
         # Current radius (linear interpolation)
         current_radius = start_radius + (end_radius - start_radius) * i / (num_points - 1)
         
         # Calculate position
-        x = center[0] + current_radius * math.cos(angle)
-        y = center[1] + current_radius * math.sin(angle)
+        x = center[0] + current_radius * torch.cos(angle).item()
+        y = center[1] + current_radius * torch.sin(angle).item()
         z = center[2]
         
         trajectory.append((t, [x, y, z]))

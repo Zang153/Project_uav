@@ -8,10 +8,8 @@ import numpy as np
 import matplotlib
 from scipy.spatial.transform import Rotation as R
 
-# Configure matplotlib backend for macOS compatibility
-if platform.system() == 'Darwin':
-    matplotlib.use('Agg')
-    # print("Detected macOS, using Agg backend for Matplotlib (saving to file instead of showing window)")
+# Configure matplotlib backend for headless environments (SSH constraints)
+matplotlib.use('Agg')
 
 import matplotlib.pyplot as plt
 
@@ -233,16 +231,9 @@ class Logger:
             
             plt.tight_layout()
             
-            # Save/Show logic
-            if platform.system() == 'Darwin':
-                plt.savefig(save_path)
-                print(f"Plot saved to {save_path}")
-            else:
-                try:
-                    plt.show()
-                except Exception:
-                    plt.savefig(save_path)
-                    print(f"Plot saved to {save_path}")
+            # Always save figure in headless mode
+            plt.savefig(save_path)
+            print(f"Plot saved to {save_path}")
 
         except Exception as e:
             print(f"Error plotting results: {e}")

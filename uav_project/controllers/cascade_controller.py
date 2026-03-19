@@ -3,6 +3,7 @@ Cascade PID Controller implementation for Quadrotor.
 Structure: Position -> Velocity -> Attitude -> Angular Rate -> Mixer.
 """
 
+import torch
 import numpy as np
 import quaternion
 from ..config import (
@@ -25,6 +26,9 @@ class CascadeController:
         """
         self.uav = uav_model
         self.mixer = Mixer()
+        
+        # Get actual UAV mass from model
+        self.mass = self.uav.get_mass()
         
         # Simulation time tracking
         self.sim_time = 0.0
@@ -53,16 +57,16 @@ class CascadeController:
         self.rate_pid = AngVelPID(RATE_KP, RATE_KI, RATE_KD, self.dts['rate'])
         
         # State Targets
-        self.target_position = np.array([0.0, 0.0, 1.0])
-        self.target_velocity = np.array([0.0, 0.0, 0.0])
-        self.target_attitude = np.quaternion(1, 0, 0, 0) # [w, x, y, z]
-        self.target_rate = np.array([0.0, 0.0, 0.0])
+        self.target_position = torch.tensor([0.0, 0.0, 1.0], dtype=torch.float32).view(3, 1)
+        self.target_velocity = torch.zeros((3, 1), dtype=torch.float32)
+        self.target_attitude = torch.tensor([1.0, 0.0, 0.0, 0.0], dtype=torch.float32).view(4, 1) # [w, x, y, z]
+        self.target_rate = torch.zeros((3, 1), dtype=torch.float32)
         self.target_yaw = 0.0 # Radians
         
         # Outputs
-        self.total_thrust_vector = np.zeros(3) # World frame force
-        self.torque_command = np.zeros(3)      # Body frame torque
-        self.motor_thrusts = np.zeros(4)
+        self.total_thrust_vector = torch.zeros((3, 1), dtype=torch.float32) # World frame force
+        self.torque_command = torch.zeros((3, 1), dtype=torch.float32)      # Body frame torque
+        self.motor_thrusts = np.zeros(4) # Keep as numpy for mixer if mixer is numpy
         
         # For logging/debugging
         self.mixer_output_log = np.zeros(6) # [Fx, Fy, Fz, Mx, My, Mz]
@@ -78,157 +82,156 @@ class CascadeController:
             self.last_updates[k] = 0.0
 
     def set_target_position(self, pos):
-        self.target_position = np.array(pos)
+        self.target_position = torch.tensor(pos, dtype=torch.float32).view(3, 1)
 
     def set_target_yaw(self, yaw_rad):
         self.target_yaw = yaw_rad
-        # Update target attitude quaternion based on new yaw? 
-        # Usually attitude is computed from velocity controller output.
-        # But if we are in hover (vel=0), we should respect this yaw.
-        # The velocity controller logic calculates desired attitude including yaw.
 
-    def update(self, sim_time):
+    def update(self, sim_time: float) -> None:
         """
-        Main update loop. Should be called every simulation step.
-        Checks if individual controllers need to run based on their frequencies.
+        Main control loop for the UAV.
+        Updates position, velocity, attitude, and rate setpoints based on the current trajectory.
+        
+        Args:
+            sim_time (float): Current simulation time.
         """
         self.sim_time = sim_time
         
-        # Get current state
-        UAV_position, UAV_velocity, UAV_att_quat, UAV_rate = self.uav.get_uav_state()
-        # UAV_att_quat is [w, x, y, z]
-        UAV_current_att = np.quaternion(*UAV_att_quat)
-
-        # 1. Position Controller (50Hz)
-        if sim_time >= self.last_updates['pos'] + self.dts['pos']:
-            self.target_velocity = self.pos_pid.update(self.target_position, UAV_position)
-            self.last_updates['pos'] = sim_time
-
-        # 2. Velocity Controller (50Hz)
-        if sim_time >= self.last_updates['vel'] + self.dts['vel']:
-            # Desired acceleration
-            acc_cmd = self.vel_pid.update(self.target_velocity, UAV_velocity)
+        with torch.no_grad():
+            # Get current state from model (returns numpy, we convert to explicit 2D tensors)
+            pos_np, vel_np, att_np, rate_np = self.uav.get_uav_state()
             
-            # Gravity Compensation (World Frame: +Z opposes gravity)
-            # Acceleration needed to counter gravity is [0, 0, 9.81]
-            # But the PID output is "acceleration error correction".
-            # Total desired acceleration = PID_out + Gravity_comp
-            # Note: Original code subtracted gravity [0, 0, -9.81] -> added [0, 0, 9.81]
-            gravity_comp = np.array([0, 0, GRAVITY]) 
-            
-            # Total desired acceleration in World Frame
-            total_acc = acc_cmd + gravity_comp
-            
-            # Calculate Total Thrust Vector (World Frame)
-            # F = m * a
-            self.total_thrust_vector = MASS * total_acc
-            
-            # Calculate Desired Attitude from Thrust Vector
-            self.target_attitude = self._calculate_desired_attitude(self.total_thrust_vector, self.target_yaw)
-            
-            self.last_updates['vel'] = sim_time
-
-        # 3. Attitude Controller (250Hz)
-        if sim_time >= self.last_updates['att'] + self.dts['att']:
-            self.target_rate = self.att_pid.update(self.target_attitude, UAV_current_att)
-            self.last_updates['att'] = sim_time
-
-        # 4. Angular Rate Controller (1000Hz)
-        if sim_time >= self.last_updates['rate'] + self.dts['rate']:
-            self.torque_command = self.rate_pid.update(self.target_rate, UAV_rate)
-            
-            # Apply Control
-            self._apply_controls()
-            
-            self.last_updates['rate'] = sim_time
-
-        
+            UAV_position = torch.tensor(pos_np, dtype=torch.float32).view(3, 1)
+            UAV_velocity = torch.tensor(vel_np, dtype=torch.float32).view(3, 1)
+            UAV_current_att = torch.tensor(att_np, dtype=torch.float32).view(4, 1) # [w, x, y, z]
+            UAV_rate = torch.tensor(rate_np, dtype=torch.float32).view(3, 1)
+    
+            # 1. Position Controller (50Hz)
+            if sim_time >= self.last_updates['pos'] + self.dts['pos']:
+                self.target_velocity = self.pos_pid.update(self.target_position, UAV_position)
+                self.last_updates['pos'] = sim_time
+    
+            # 2. Velocity Controller (50Hz)
+            if sim_time >= self.last_updates['vel'] + self.dts['vel']:
+                # Desired acceleration
+                acc_cmd = self.vel_pid.update(self.target_velocity, UAV_velocity)
+                
+                # Gravity Compensation (World Frame: +Z opposes gravity)
+                gravity_comp = torch.tensor([[0.0], [0.0], [GRAVITY]], dtype=torch.float32)
+                
+                # Total desired acceleration in World Frame
+                total_acc = acc_cmd + gravity_comp
+                
+                # Calculate Total Thrust Vector (World Frame)
+                self.total_thrust_vector = self.mass * total_acc
+                
+                # Calculate Desired Attitude from Thrust Vector
+                self.target_attitude = self._calculate_desired_attitude(self.total_thrust_vector, self.target_yaw)
+                
+                self.last_updates['vel'] = sim_time
+    
+            # 3. Attitude Controller (250Hz)
+            if sim_time >= self.last_updates['att'] + self.dts['att']:
+                self.target_rate = self.att_pid.update(self.target_attitude, UAV_current_att)
+                self.last_updates['att'] = sim_time
+    
+            # 4. Angular Rate Controller (1000Hz)
+            if sim_time >= self.last_updates['rate'] + self.dts['rate']:
+                self.torque_command = self.rate_pid.update(self.target_rate, UAV_rate)
+                
+                # Apply Control
+                self._apply_controls(UAV_current_att)
+                
+                self.last_updates['rate'] = sim_time
 
     def print_state(self):
         return self.uav.print_uav_state()
 
-    def _calculate_desired_attitude(self, thrust_vector, yaw_target):
+    def _calculate_desired_attitude(self, thrust_vector: torch.Tensor, yaw_target: float) -> torch.Tensor:
         """
         Calculates the desired attitude quaternion to align the body Z-axis 
         with the desired thrust vector, while maintaining the target yaw.
+        
+        Args:
+            thrust_vector (torch.Tensor): Shape: (3, 1), Dtype: torch.float32, Meaning: Desired thrust vector in world frame
+            yaw_target (float): Yaw angle in radians
+        
+        Returns:
+            torch.Tensor: Desired quaternion [w, x, y, z], Shape: (4, 1), Dtype: torch.float32
         """
-        # Z-axis (Body Z) should align with thrust vector
-        z_b = thrust_vector / (np.linalg.norm(thrust_vector) + 1e-6)
-        
-        # Desired Yaw direction in World Frame (Body Y projected on XY plane)
-        # Note: Original code uses specific logic for X/Y axes construction.
-        # Standard approach:
-        # x_c = [cos(yaw), sin(yaw), 0]
-        # y_b = (z_b x x_c) / norm...
-        # x_b = y_b x z_b
-        
-        # Original code logic:
-        # yaw_axis = [-sin(yaw), cos(yaw), 0] (This looks like Y axis direction for 0 yaw is Y-world?)
-        # Let's follow standard aviation or original?
-        # Original: yaw_angle=0 -> yaw_axis = [0, 1, 0] (World Y)
-        # x_axis = cross(yaw_axis, z_axis) -> cross(Y, Z) = X. Correct.
-        
-        yaw_axis = np.array([-np.sin(yaw_target), np.cos(yaw_target), 0])
-        
-        x_b = np.cross(yaw_axis, z_b)
-        x_b_norm = np.linalg.norm(x_b)
-        
-        if x_b_norm < 1e-6:
-            # Singularity (Thrust vector parallel to yaw axis - unlikely unless 90deg pitch/roll)
-            x_b = np.array([1, 0, 0])
-        else:
-            x_b = x_b / x_b_norm
+        with torch.no_grad():
+            norm_thrust = torch.norm(thrust_vector)
+            z_b = thrust_vector / (norm_thrust + 1e-6)
             
-        y_b = np.cross(z_b, x_b)
-        y_b = y_b / np.linalg.norm(y_b)
-        
-        # Rotation Matrix [x_b, y_b, z_b]
-        rot_mat = np.column_stack((x_b, y_b, z_b))
-        
-        return quaternion.from_rotation_matrix(rot_mat)
+            yaw_axis = torch.tensor([[-torch.sin(torch.tensor(yaw_target))], [torch.cos(torch.tensor(yaw_target))], [0.0]], dtype=torch.float32)
+            
+            # Cross product requires 1D or flattened for torch.cross in basic usage
+            x_b = torch.cross(yaw_axis.view(-1), z_b.view(-1)).view(3, 1)
+            x_b_norm = torch.norm(x_b)
+            
+            if x_b_norm < 1e-6:
+                x_b = torch.tensor([[1.0], [0.0], [0.0]], dtype=torch.float32)
+            else:
+                x_b = x_b / x_b_norm
+                
+            y_b = torch.cross(z_b.view(-1), x_b.view(-1)).view(3, 1)
+            y_b = y_b / torch.norm(y_b)
+            
+            # Rotation Matrix [x_b, y_b, z_b]
+            rot_mat = torch.cat((x_b, y_b, z_b), dim=1) # Shape: (3, 3)
+            
+            # Safe numpy conversion for quaternion library
+            rot_mat_np = rot_mat.cpu().numpy()
+            q_np = quaternion.from_rotation_matrix(rot_mat_np)
+            return torch.tensor([[q_np.w], [q_np.x], [q_np.y], [q_np.z]], dtype=torch.float32)
 
-    def _apply_controls(self):
+    def _apply_controls(self, current_att: torch.Tensor) -> None:
         """
-        Calculates motor commands and applies them to the UAV.
+        Maps total thrust vector and torque commands to motor speeds.
+        
+        Args:
+            current_att (torch.Tensor): Current attitude quaternion (w, x, y, z), Shape: (4, 1), Dtype: torch.float32
         """
-        # Total Thrust Magnitude (Projected onto Body Z)
-        # Actually, total_thrust_vector is in World Frame.
-        # The force actuators in MuJoCo (forcex,y,z) are likely Body Frame (if defined at site) or World Frame?
-        # My analysis of uav_model.py concluded they are likely applied at a site which rotates.
-        # BUT, the original code computed `force_body = att_mat.T @ total_thrust`.
-        # This confirms actuators are BODY FRAME.
-        # So we need to convert World Frame Thrust Vector to Body Frame.
-        
-        _, _, UAV_att_quat, _ = self.uav.get_uav_state()
-        q = np.quaternion(*UAV_att_quat)
-        rot_mat = quaternion.as_rotation_matrix(q)
-        
-        # Transform World Thrust -> Body Frame
-        # F_body = R^T * F_world
-        force_body = rot_mat.T @ self.total_thrust_vector
-        
-        # Prepare Mixer Inputs
-        # The mixer expects Total Thrust (Scalar) and Torques.
-        # For simplified control, we send [Fx, Fy, Fz] directly to force actuators.
-        # And [Mx, My, Mz] directly to torque actuators.
-        
-        # Update logging
-        self.mixer_output_log[:3] = force_body
-        self.mixer_output_log[3:] = self.torque_command
-        
-        # Apply to model
-        self.uav.set_actuators(force_body, self.torque_command)
-        
-        # Calculate individual motor thrusts for logging/visualization
-        # Total thrust magnitude for mixer
-        thrust_mag = force_body[2] # Primarily Z component
-        self.motor_thrusts = self.mixer.simple_mix(thrust_mag, self.torque_command)
+        with torch.no_grad():
+            # Reason: quaternion library expects 1D array.
+            # Current dimension: (4, 1) -> (4,)
+            q = np.quaternion(*current_att.squeeze().cpu().numpy())
+            rot_mat_np = quaternion.as_rotation_matrix(q)
+            rot_mat = torch.tensor(rot_mat_np, dtype=torch.float32)
+            
+            # Transform World Thrust -> Body Frame
+            # F_body = R^T * F_world
+            force_body = rot_mat.T @ self.total_thrust_vector
+            
+            # Convert back to numpy for logging and external models
+            # Reason: uav_model and mixer expect numpy arrays.
+            # Current dimensions: (3, 1) -> (3,)
+            f_body_np = force_body.squeeze().cpu().numpy()
+            t_body_np = self.torque_command.squeeze().cpu().numpy()
+            
+            self.mixer_output_log[:3] = f_body_np
+            self.mixer_output_log[3:] = t_body_np
+            
+            # self.uav.set_actuators(f_body_np, t_body_np) # Disabled direct force actuation
+            
+            thrust_mag = f_body_np[2]
+            # Use the gym-pybullet-drones style inverse mixing matrix
+            motor_speeds_krpm = self.mixer.calculate(thrust_mag, t_body_np[0], t_body_np[1], t_body_np[2])
+            
+            # Apply squared motor speeds to MuJoCo rotor actuators
+            motor_speeds_sq = motor_speeds_krpm ** 2
+            self.uav.set_motor_speeds(motor_speeds_sq)
+            
+            self.motor_thrusts = motor_speeds_sq * self.mixer.Ct # Log actual thrust per motor
 
     def get_log_data(self):
         """Returns data for logging."""
         UAV_pos, UAV_vel, UAV_att, UAV_rate = self.uav.get_uav_state()
         return (
             self.sim_time, UAV_pos, UAV_vel, UAV_att, UAV_rate,
-            self.target_position, self.target_velocity, self.target_attitude, self.target_rate,
+            self.target_position.squeeze().cpu().numpy(), 
+            self.target_velocity.squeeze().cpu().numpy(), 
+            self.target_attitude.squeeze().cpu().numpy(), 
+            self.target_rate.squeeze().cpu().numpy(),
             self.motor_thrusts, self.mixer_output_log
         )

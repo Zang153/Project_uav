@@ -15,7 +15,7 @@ if project_root not in sys.path:
 
 # Adjust imports to work when run as a module
 from uav_project.simulation.simulator import Simulator
-from uav_project.controllers.cascade_controller import CascadeController
+# from uav_project.controllers.cascade_controller import CascadeController
 from uav_project.controllers.combined_controller import CombinedController
 from uav_project.models.uav_model import UAVModel
 from uav_project.utils.logger import Logger
@@ -29,7 +29,10 @@ def main():
     # 1. Setup Paths
     current_dir = os.path.dirname(os.path.abspath(__file__))
     project_root = os.path.dirname(current_dir) # Delta_project
-    model_path = os.path.join(current_dir, "meshes", "Delta.xml")
+    
+    # You can switch between "Delta.xml" and "UAV.xml" here
+    model_filename = "UAV.xml" 
+    model_path = os.path.join(current_dir, "meshes", model_filename)
     
     if not os.path.exists(model_path):
         print(f"Error: Model file not found at {model_path}")
@@ -69,7 +72,7 @@ def main():
         (100, [0, 0, 0.5])
     ]
 
-    # 7. Run Simulation
+    # 7. Run Simulation (Headless=True due to SSH constraints)
     simulator.run(duration=total_sim_time, trajectory=trajectory0, headless=False)
     
     # 8. Plot Results

@@ -290,17 +290,17 @@
     <motor name="rotor2" ctrllimited="true" ctrlrange="0.0 1.0" gear="0  0 6.5 0. 0. -1" site="motor3"/>
     <motor name="rotor3" ctrllimited="true" ctrlrange="0.0 1.0" gear="0  0 6.5 0. 0.  1" site="motor4"/> -->
 
-    <motor name="forcex" gear="1 0 0 0 0 0" site="UAV_center"/> 
+    <!-- <motor name="forcex" gear="1 0 0 0 0 0" site="UAV_center"/> 
     <motor name="forcey" gear="0 1 0 0 0 0" site="UAV_center"/> 
     <motor name="forcez" gear="0 0 1 0 0 0" site="UAV_center"/> 
     <motor name="Mx" gear="0 0 0 1 0 0" site="UAV_center"/> 
     <motor name="My" gear="0 0 0 0 1 0" site="UAV_center"/> 
-    <motor name="Mz" gear="0 0 0 0 0 1" site="UAV_center"/> 
+    <motor name="Mz" gear="0 0 0 0 0 1" site="UAV_center"/> -->
 
-    <motor name="rotor0" gear="0 0 1 0. 0. -1" site="motor1"/>
-    <motor name="rotor1" gear="0 0 1 0. 0.  1" site="motor2"/>
-    <motor name="rotor2" gear="0 0 1 0. 0. -1" site="motor3"/>
-    <motor name="rotor3" gear="0 0 1 0. 0.  1" site="motor4"/>    
+    <motor name="rotor0" gear="0 0 0.01343 0. 0. -0.00031" site="motor1"/>
+    <motor name="rotor1" gear="0 0 0.01343 0. 0.  0.00031" site="motor2"/>
+    <motor name="rotor2" gear="0 0 0.01343 0. 0. -0.00031" site="motor3"/>
+    <motor name="rotor3" gear="0 0 0.01343 0. 0.  0.00031" site="motor4"/>    
       
     <position name="armmotor1" joint="motor_arm_joint1" kp="100" kv="10" ctrllimited="true" ctrlrange="-1.57 0.523"/>
     <position name="armmotor2" joint="motor_arm_joint2" kp="100" kv="10" ctrllimited="true" ctrlrange="-1.57 0.523"/>

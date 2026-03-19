@@ -3,8 +3,7 @@ import numpy as np
 # import matplotlib.pyplot as plt 
 # import time 
 import math 
-from numpy import pi
-
+import torch
 
 class DeltaKinematics: 
 	def __init__(self, rod_b = 0.1, rod_ee = 0.2, r_b = 0.074577, r_ee = 0.02495):
@@ -125,5 +124,5 @@ class DeltaKinematics:
 			J1_z = c1 + c2*J1_y
 			F1_y = -r_b
 
-			theta[i] = math.atan(-J1_z/(F1_y - J1_y))*180/pi
+			theta[i] = math.atan(-J1_z/(F1_y - J1_y))*180/torch.pi
 		return np.array(theta)*(-1) # The definition of +/- is opposite.

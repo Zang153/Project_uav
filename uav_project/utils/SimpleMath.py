@@ -1,10 +1,13 @@
-from numpy import sin, cos, tan, pi
+import torch
 
 def tand(theta):
-	return tan(theta*pi/180)
+    angle = torch.tensor(theta * torch.pi / 180, dtype=torch.float32)
+    return torch.tan(angle).item()
 
 def sind(theta):
-	return sin(theta*pi/180)
+    angle = torch.tensor(theta * torch.pi / 180, dtype=torch.float32)
+    return torch.sin(angle).item()
 
 def cosd(theta):
-	return cos(theta*pi/180)
+    angle = torch.tensor(theta * torch.pi / 180, dtype=torch.float32)
+    return torch.cos(angle).item()

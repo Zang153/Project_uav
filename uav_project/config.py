@@ -10,7 +10,7 @@ SIM_TIMESTEP = 0.0001
 RENDER_FPS = 60
 
 # --- UAV Physical Parameters ---
-MASS = 1.27  # kg
+MASS = 0.4  # kg (Aligned with UAV.xml / Delta.xml UAV_body mass)
 GRAVITY = 9.81  # m/s^2
 ARM_LENGTH = 0.18  # m (Motor arm length)
 
@@ -35,20 +35,20 @@ FREQ_ANGLE_RATE = 1000
 
 # --- PID Gains ---
 # Position Control (P-only)
-POS_KP = np.array([8.0, 8.0, 12.0])
+POS_KP = np.array([2.0, 2.0, 5.0])
 
 # Velocity Control (PID)
-VEL_KP = np.array([4.0, 4.0, 6.0])
-VEL_KI = np.array([0.0, 0.0, 0.0])
+VEL_KP = np.array([2.0, 2.0, 4.0])
+VEL_KI = np.array([0.1, 0.1, 0.1])
 VEL_KD = np.array([0.05, 0.05, 0.05])
 
 # Attitude Control (P-only, Quaternion based)
-ATT_KP = np.array([9.0, 9.0, 12.0])
+ATT_KP = np.array([5.0, 5.0, 5.0])
 
 # Angular Rate Control (PID)
-RATE_KP = np.array([3.0, 3.0, 3.0])
-RATE_KI = np.array([100.0, 100.0, 100.0])
-RATE_KD = np.array([0.00005, 0.00005, 0.00005])
+RATE_KP = np.array([0.5, 0.5, 0.5])
+RATE_KI = np.array([0.05, 0.05, 0.05])
+RATE_KD = np.array([0.005, 0.005, 0.005])
 
 # --- Output Limits ---
 # Can be added here if needed, currently handled in logic

@@ -38,9 +38,18 @@ class Mixer:
         
         self.inv_mat = np.linalg.inv(self.mat)
 
-    def calculate(self, thrust, mx, my, mz):
+    def calculate(self, thrust: float, mx: float, my: float, mz: float) -> np.ndarray:
         """
         Calculates motor speeds (kRPM) from desired thrust and torques with saturation handling.
+        
+        Args:
+            thrust (float): Total desired thrust in body Z.
+            mx (float): Desired moment around body X.
+            my (float): Desired moment around body Y.
+            mz (float): Desired moment around body Z.
+            
+        Returns:
+            np.ndarray: Motor speeds in kRPM, Shape: (4,)
         """
         Mx, My = mx, my
         Mz = 0 # Prioritize X/Y, set Z to 0 initially

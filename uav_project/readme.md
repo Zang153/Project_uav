@@ -22,16 +22,19 @@ This project uses **Conda** for environment management. Follow the steps below t
 
 2.  **Create Conda Environment**
 
-    Create a new environment named `delta_sim` with Python 3.11:
+    We use an environment named `mujoco-sim` for this project. The `environment.yml` uses Conda to install most dependencies, but explicitly uses `pip` to install PyTorch with CUDA 13.0 support for RTX 4090 compatibility.
+    
+    You can create it directly from the `environment.yml` file:
 
     ```bash
-    conda create -n delta_sim python=3.11 -y
+    cd .. # Ensure you are in the root directory of Project_uav
+    conda env create -f environment.yml
     ```
 
 3.  **Activate Environment**
 
     ```bash
-    conda activate delta_sim
+    conda activate mujoco-sim
     ```
 
     > **Note for Windows PowerShell Users:**
@@ -42,19 +45,12 @@ This project uses **Conda** for environment management. Follow the steps below t
     > ```
     > Restart your terminal after running these commands.
 
-4.  **Install Dependencies**
+4.  **Verify Dependencies**
 
-    Install the required packages. Note that `mujoco` is installed via `conda-forge` to ensure compatibility on Windows.
+    Verify that the core dependencies, including `torch` and `mujoco`, are installed correctly:
 
     ```bash
-    # Install core scientific packages
-    conda install numpy scipy matplotlib -y
-    
-    # Install MuJoCo from conda-forge (Recommended for Windows)
-    conda install -c conda-forge mujoco -y
-    
-    # Install other dependencies via pip
-    pip install numpy-quaternion
+    python -c "import matplotlib, scipy, numpy, quaternion, mujoco, torch; print('All dependencies installed successfully!')"
     ```
 
 ### Running the Simulation
@@ -74,3 +70,10 @@ python main.py
 - `simulation/`: MuJoCo simulator interface.
 - `utils/`: Helper functions, kinematics, and logging.
 - `main.py`: Entry point for the simulation.
+
+## Troubleshooting
+
+- **ModuleNotFoundError**: Ensure you have activated the correct environment (`conda activate mujoco-sim`) and that all dependencies installed correctly.
+- **No plot output**: If running via SSH without X11 forwarding, Matplotlib uses the `Agg` backend to save the plot as `simulation_results.png` instead of displaying it. This is configured in `utils/logger.py`.
+- **Type errors**: If modifying PID gains, ensure they are converted to PyTorch tensors to maintain compatibility with the vectorized controllers (see `controllers/pid.py`).
+- **CUDA errors**: PyTorch is installed with CUDA 13.0 support. Make sure your NVIDIA drivers (e.g., RTX 4090) are updated to support CUDA 13.0.
