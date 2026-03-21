@@ -23,7 +23,7 @@ from uav_project.utils.trajectory import generate_circular_trajectory, generate_
 
 def main():
     # 0. Set total sim time (in seconds)
-    total_sim_time = 20.0
+    total_sim_time = 30.0
 
     # 1. Setup Paths
     current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -61,7 +61,7 @@ def main():
     # 6. Define Trajectory
     trajectory = generate_circular_trajectory(
         center=[0, 0, 1.0],
-        radius=1.0,
+        radius=2.0,
         total_time=total_sim_time,
         num_points=100,
         clockwise=False,
@@ -71,9 +71,18 @@ def main():
         (0.0, [0, 0, 1.5]),
         (100.0, [0, 0, 1.5])
     ]
+    trajectory1 = generate_spiral_trajectory(
+        center=[0, 0, 1.0],
+        start_radius=1.0,
+        end_radius=2.0,
+        total_time=total_sim_time,
+        num_turns=3,
+        num_points=100,
+        clockwise=False
+    )
 
     # 7. Run Simulation (Headless=True due to SSH constraints)
-    simulator.run(duration=total_sim_time, trajectory=trajectory, headless=False)
+    simulator.run(duration=total_sim_time, trajectory=trajectory0, headless=False)
     
     # 8. Plot Results
     logger.plot_results(save_path=os.path.join(current_dir, 'simulation_results.png'))
