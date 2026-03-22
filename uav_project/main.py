@@ -82,7 +82,8 @@ def main():
     )
 
     # 7. Run Simulation (Headless=True due to SSH constraints)
-    simulator.run(duration=total_sim_time, trajectory=trajectory0, headless=False)
+    # Set print_state_info to True to enable terminal output, False to disable
+    simulator.run(duration=total_sim_time, trajectory=trajectory0, headless=False, print_state_info=False)
     
     # 8. Plot Results
     logger.plot_results(save_path=os.path.join(current_dir, 'simulation_results.png'))

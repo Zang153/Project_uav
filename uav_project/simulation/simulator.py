@@ -32,7 +32,7 @@ class Simulator:
         self.render_interval = 1.0 / RENDER_FPS
         self.steps_per_render = max(1, int(self.render_interval / self.timestep))
 
-    def run(self, duration=10.0, trajectory=None, headless=False):
+    def run(self, duration=10.0, trajectory=None, headless=False, print_state_info=False):
         """
         Runs the simulation.
         
@@ -40,7 +40,9 @@ class Simulator:
             duration: Total simulation time (seconds).
             trajectory: List of (time, [x, y, z]) tuples defining the path.
             headless: If True, runs without viewer.
+            print_state_info: If True, prints controller state periodically.
         """
+        self.print_state_info = print_state_info
         total_steps = int(duration / self.timestep)
         
         if headless:
@@ -90,8 +92,8 @@ class Simulator:
             log_data = self.controller.get_log_data()
             self.logger.log(*log_data)
 
-        if step % 100 == 0:
-            self.controller.print_state() # Disable print for cleaner output in headless
+        if self.print_state_info and step % 100 == 0:
+            self.controller.print_state() # Print state if enabled
 
     def _update_target(self, current_time, trajectory):
         """
