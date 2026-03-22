@@ -135,7 +135,14 @@ class DeltaKinematics:
 			F1_y = -r_b
 
 			val = -J1_z/(F1_y - J1_y)
-			theta[i] = torch.atan(torch.tensor(val, dtype=torch.float32)).item()*180/torch.pi
+			
+			# 如果 val 已经是 Tensor，则直接使用；如果不是，则转换为 Tensor
+			if isinstance(val, torch.Tensor):
+				val_tensor = val.clone().detach().to(dtype=torch.float32)
+			else:
+				val_tensor = torch.tensor(val, dtype=torch.float32)
+				
+			theta[i] = torch.atan(val_tensor).item()*180/torch.pi
 		
 		# Return negative theta array as expected by the caller
 		return -torch.tensor(theta, dtype=torch.float32)
