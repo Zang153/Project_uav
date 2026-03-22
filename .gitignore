@@ -31,9 +31,14 @@ ENV/
 *.pkl
 *.pt
 *.bin
+*.zip
 data/
 logs/
+runs/
+rl_results/
+models/
 
 # Simulation outputs and Log files
 MUJOCO_LOG.TXT
 simulation_results.png
+output.log

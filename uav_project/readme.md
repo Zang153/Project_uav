@@ -62,6 +62,15 @@ cd uav_project
 python main.py
 ```
 
+## Dependencies
+Core libraries:
+- `torch>=2.0.0` (For tensor-based kinematics and control loops)
+- `mujoco>=3.1.0` (Physics engine)
+- `matplotlib>=3.7.0` (For plotting simulation results)
+- `numpy>=1.24.0`
+- `stable-baselines3[extra]>=2.2.1` (For reinforcement learning training and evaluation)
+- `mujoco-python-viewer>=0.1.4` (For rendering the 3D simulation environment)
+
 ## Project Structure
 
 - `controllers/`: Control algorithms (PID, Cascade, etc.)

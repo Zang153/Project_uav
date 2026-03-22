@@ -81,6 +81,16 @@
 
 *后续优化建议：可以在代码中根据加载的 XML 模型名称，动态加载对应的 PID 参数配置，以避免频繁手动修改 `config.py`。*
 
+### 2. 强化学习 (RL) 框架搭建与集成
+为了支持后续的强化学习科研需求，在项目中引入了基于 Gymnasium 和 Stable-Baselines3 的 RL 训练框架。
+- **层次化环境设计**：参考 `gym-pybullet-drones` 架构，创建了 `rl_envs` 包，包含三层继承结构：
+  - `BaseMujocoAviary`: 底层物理封装，接管 MuJoCo 步进 (`mj_step`) 和 Viewer 渲染逻辑。
+  - `BaseRLMujocoAviary`: RL 适配层，定义 `[-1, 1]` 的标准化动作空间、扁平化的 12 维运动学观测空间，并实现了基于 `deque` 的历史动作缓存 (Action Buffer) 拼接，解决控制延迟带来的非马尔可夫问题。
+  - `HoverMujocoAviary`: 具体任务层，实现了单机悬停任务 (`TARGET_POS = [0, 0, 1]`)，基于欧氏距离定义了 Reward 函数，并增加了防翻车/出界的 Truncated 截断条件以提升训练效率。
+- **环境验证**：编写 `test_rl_env.py`，顺利通过 `stable-baselines3` 的 `check_env` 接口测试。
+- **并行训练流水线**：编写 `train_rl.py`，使用 `make_vec_env` 开启多进程环境加速采样，配置 PPO (MlpPolicy) 算法，并挂载 `EvalCallback` 实现最佳模型的自动评估与保存。
+- **可视化与测试**：编写 `enjoy_rl.py` 和配套的启动脚本 `run_enjoy.sh`。解决了 SSH 远程调用渲染时的 `mujoco-python-viewer` 依赖缺失问题，并利用 `LD_PRELOAD` 成功修复了 conda 环境中 `matplotlib` 引起的 `libstdc++.so.6: version CXXABI_1.3.15 not found` C++ 库版本冲突。
+
 ---
 
-*注：本次更新标志着 UAV-Delta 仿真核心控制链路的 PyTorch 化重构基本完成，并实现了对无 GUI 远程开发服务器的全面兼容。*
+*注：本次更新标志着 UAV-Delta 仿真核心控制链路的 PyTorch 化重构基本完成，并成功跑通了首个基于 MuJoCo 的强化学习单机悬停模型训练与渲染闭环。*

@@ -4,13 +4,12 @@ channels:
   - defaults
 dependencies:
   - python=3.11
-  - numpy
-  - scipy
-  - matplotlib
-  - quaternion
   - pip
   - pip:
-      - mujoco>=3.0.0
-      - torch
-      - torchvision
-      - torchaudio
+    - torch>=2.0.0
+    - numpy>=1.24.0
+    - pyyaml>=6.0
+    - matplotlib>=3.7.0
+    - mujoco>=3.1.0
+    - mujoco-python-viewer>=0.1.4  # 用于 macOS 端渲染 3D 画面
+    - stable-baselines3[extra]>=2.2.1  # 强化学习核心算法库 (含 tensorboard)
