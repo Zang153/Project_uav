@@ -5,7 +5,7 @@ from abc import ABC
 from collections import deque
 
 from .BaseMujocoAviary import BaseMujocoAviary
-from ..config import MASS, GRAVITY, CT
+from ..config import MASS, GRAVITY, CT, RL_CONTROL_FREQ
 
 class BaseRLMujocoAviary(BaseMujocoAviary, ABC):
     """
@@ -14,21 +14,29 @@ class BaseRLMujocoAviary(BaseMujocoAviary, ABC):
     """
     def __init__(self, act_hist_len=2, hover_rpm=None, **kwargs):
         self.act_hist_len = act_hist_len
+        self.control_freq = RL_CONTROL_FREQ
         
-        if hover_rpm is None:
-            # Automatically calculate the hover RPM
-            # Thrust required per motor (N)
-            hover_thrust_per_motor = (MASS * GRAVITY) / 4.0
-            # Thrust = CT * krpm^2 -> krpm^2 = Thrust / CT
-            hover_krpm_sq = hover_thrust_per_motor / CT
-            self.hover_rpm = np.sqrt(hover_krpm_sq) * 1000.0
-        else:
-            self.hover_rpm = hover_rpm
-            
         self.action_buffer = deque(maxlen=self.act_hist_len)
         
         # Superclass init will call _actionSpace and _observationSpace
         super().__init__(**kwargs)
+        
+        if hover_rpm is None:
+            # Automatically calculate the hover RPM based on the actual mass of the MuJoCo model
+            # This ensures that if a heavier model (like Delta.xml) is loaded, the hover_rpm adapts automatically.
+            import mujoco
+            total_mass = mujoco.mj_getTotalmass(self.model)
+            # Thrust required per motor (N)
+            hover_thrust_per_motor = (total_mass * GRAVITY) / 4.0
+            # Thrust = CT * krpm^2 -> krpm^2 = Thrust / CT
+            hover_krpm_sq = hover_thrust_per_motor / CT
+            self.hover_rpm = np.sqrt(hover_krpm_sq) * 1000.0
+            print(f"[INFO] BaseRLMujocoAviary: Dynamically calculated total mass: {total_mass:.3f} kg, hover_rpm: {self.hover_rpm:.1f}")
+        else:
+            self.hover_rpm = hover_rpm
+        
+        # Calculate how many physics steps to run per RL action step
+        self.physics_steps_per_control = int(self.freq / self.control_freq)
 
     def reset(self, seed=None, options=None):
         """Resets the environment and the action buffer."""
@@ -37,7 +45,40 @@ class BaseRLMujocoAviary(BaseMujocoAviary, ABC):
         for _ in range(self.act_hist_len):
             self.action_buffer.append(np.zeros(self.model.nu, dtype=np.float32))
             
+        self.step_counter = 0
+            
         return super().reset(seed=seed, options=options)
+
+    def step(self, action: np.ndarray):
+        """
+        Executes an action in the environment.
+        Advances the physics simulation by `physics_steps_per_control` steps.
+        """
+        processed_action = self._preprocessAction(action)
+        
+        # Apply the same action for multiple physics steps
+        for _ in range(self.physics_steps_per_control):
+            # Apply control
+            self.data.ctrl[:] = processed_action
+            
+            # Step MuJoCo physics
+            import mujoco
+            mujoco.mj_step(self.model, self.data)
+            
+            # Check early termination during the skipped steps
+            if self._computeTerminated():
+                break
+                
+        # Update internal step counter ONCE per control step
+        self.step_counter += 1
+
+        obs = self._computeObs()
+        reward = self._computeReward()
+        terminated = self._computeTerminated()
+        truncated = self._computeTruncated()
+        info = self._computeInfo()
+        
+        return obs, reward, terminated, truncated, info
 
     def _actionSpace(self) -> gym.Space:
         """
