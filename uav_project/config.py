@@ -70,3 +70,9 @@ RATE_KD = np.array([0.005, 0.005, 0.001])
 
 # --- Output Limits ---
 # Can be added here if needed, currently handled in logic
+
+# --- Reinforcement Learning Settings ---
+RL_EPISODE_DURATION = 10.0  # seconds per episode (Note: actual max_steps is handled by gymnasium's TimeLimit if wrapped, or our internal counter)
+RL_EVAL_FREQ_SEC = 20.0     # evaluate every X seconds of simulation (increased for long training to save time)
+RL_TOTAL_TRAIN_SEC = 50000.0 # total simulation time for training (50,000s * 100Hz = 5,000,000 steps. ~28 hours of CPU time at 48fps)
+RL_CONTROL_FREQ = 100       # RL agent decision frequency (Hz). If physics is 10000Hz, agent decides every 100 physics steps.

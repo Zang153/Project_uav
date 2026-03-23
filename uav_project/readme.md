@@ -77,8 +77,54 @@ Core libraries:
 - `meshes/`: STL files and XML models for the robot.
 - `models/`: Robot model definitions and mixer logic.
 - `simulation/`: MuJoCo simulator interface.
+- `rl_envs/`: Reinforcement Learning Gymnasium environments (Hover, Track).
 - `utils/`: Helper functions, kinematics, and logging.
-- `main.py`: Entry point for the simulation.
+- `main.py`: Entry point for the traditional PID simulation.
+- `train_delta_*.py`: Training scripts for reinforcement learning tasks.
+- `enjoy_delta_*.py`: Testing/Visualization scripts for trained RL models.
+
+## Reinforcement Learning (RL) Workflows
+
+This project uses `Stable-Baselines3` to train policies for the UAV with the Delta arm.
+
+### 1. Training a Policy
+
+There are currently two main RL tasks:
+- **Hover Task**: Train the UAV to hover stably with the Delta arm attached.
+  ```bash
+  python train_delta_hover_rl.py
+  ```
+- **Track Task**: Train the UAV to hover while the Delta arm tracks a circular trajectory.
+  ```bash
+  python train_delta_track_rl.py
+  ```
+*Note: Training scripts use `SubprocVecEnv` with 32 parallel environments by default to maximize CPU utilization. The training duration is defined by `RL_EPISODE_DURATION` in `config.py`.*
+
+### 2. Evaluating and Visualizing (Enjoy)
+
+Once a model is trained (or during training), you can visualize the best model's performance:
+- **Hover Task**:
+  ```bash
+  python enjoy_delta_hover_rl.py
+  ```
+- **Track Task**:
+  ```bash
+  python enjoy_delta_track_rl.py
+  ```
+*These scripts will open a 3D MuJoCo viewer (if X11/display is available) and print real-time state and tracking errors to the terminal.*
+
+### 3. Monitoring Training Progress (TensorBoard)
+
+During or after training, you can monitor the reward curves, episode lengths, and other metrics using TensorBoard:
+
+```bash
+# For the Hover task
+tensorboard --logdir=rl_results/delta_hover_logs --port=6006
+
+# For the Track task
+tensorboard --logdir=rl_results/delta_track_logs --port=6006
+```
+Then, open your browser and navigate to `http://localhost:6006/`.
 
 ## Troubleshooting
 
