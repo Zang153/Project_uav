@@ -40,6 +40,9 @@ class BaseRLMujocoAviary(BaseMujocoAviary, ABC):
 
     def reset(self, seed=None, options=None):
         """Resets the environment and the action buffer."""
+        # Call super first to reset mujoco data
+        super().reset(seed=seed, options=options)
+        
         self.action_buffer.clear()
         # Initialize buffer with zeros
         for _ in range(self.act_hist_len):
@@ -47,7 +50,10 @@ class BaseRLMujocoAviary(BaseMujocoAviary, ABC):
             
         self.step_counter = 0
             
-        return super().reset(seed=seed, options=options)
+        # Return initial observation and info
+        obs = self._computeObs()
+        info = self._computeInfo()
+        return obs, info
 
     def step(self, action: np.ndarray):
         """

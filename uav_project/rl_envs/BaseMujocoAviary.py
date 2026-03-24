@@ -41,6 +41,8 @@ class BaseMujocoAviary(gym.Env, ABC):
         mujoco.mj_forward(self.model, self.data)
         
         # Compute initial observation
+        # Do not compute obs here if the subclass needs more initialization first.
+        # However, Gym requires reset to return obs, info. We will let subclass override reset if needed.
         obs = self._computeObs()
         info = self._computeInfo()
         
