@@ -58,12 +58,26 @@ class Simulator:
                 print(f"Simulation started. Duration: {duration}s, Timestep: {self.timestep}s")
                 start_real_time = time.time()
                 
+                # To maintain real-time viewing experience across the whole loop
+                next_render_time = time.time() + self.render_interval
+                
                 for step in range(total_steps):
                     self._step_simulation(step, trajectory)
                     
                     # 5. Rendering
                     if step % self.steps_per_render == 0:
                         viewer.sync()
+                        
+                        # Calculate time to sleep to maintain RENDER_FPS
+                        now = time.time()
+                        time_until_next_render = next_render_time - now
+                        if time_until_next_render > 0:
+                            time.sleep(time_until_next_render)
+                            
+                        # Update the target time for the next render
+                        # We use time.time() here after sleep to prevent accumulation of lag 
+                        # if the physics step took longer than the render interval
+                        next_render_time = time.time() + self.render_interval
                         
                         # Optional: Print progress
                         if step % 5000 == 0:

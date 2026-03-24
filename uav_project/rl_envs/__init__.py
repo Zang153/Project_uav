@@ -3,7 +3,8 @@ from .BaseRLMujocoAviary import BaseRLMujocoAviary
 from .HoverMujocoAviary import HoverMujocoAviary
 from .TrackCircularMujocoAviary import TrackCircularMujocoAviary
 from .HoverDeltaMujocoAviary import HoverDeltaMujocoAviary
+from .DisturbanceHoverDeltaMujocoAviary import DisturbanceHoverDeltaMujocoAviary
 from .TrackDeltaMujocoAviary import TrackDeltaMujocoAviary
 
-__all__ = ["BaseMujocoAviary", "BaseRLMujocoAviary", "HoverMujocoAviary", "TrackCircularMujocoAviary", "HoverDeltaMujocoAviary", "TrackDeltaMujocoAviary"]
+__all__ = ["BaseMujocoAviary", "BaseRLMujocoAviary", "HoverMujocoAviary", "TrackCircularMujocoAviary", "HoverDeltaMujocoAviary", "DisturbanceHoverDeltaMujocoAviary", "TrackDeltaMujocoAviary"]
 

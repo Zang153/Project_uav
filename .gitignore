@@ -42,3 +42,4 @@ models/
 MUJOCO_LOG.TXT
 simulation_results.png
 output.log
+*.png
