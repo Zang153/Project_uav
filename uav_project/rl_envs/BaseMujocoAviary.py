@@ -14,7 +14,7 @@ class BaseMujocoAviary(gym.Env, ABC):
     def __init__(self, 
                  xml_path: str = "../meshes/UAV.xml", 
                  render_mode: str = None, 
-                 freq: int = 100):
+                 freq: int = None):
         super().__init__()
         
         # Load MuJoCo model
@@ -22,8 +22,13 @@ class BaseMujocoAviary(gym.Env, ABC):
         self.model = mujoco.MjModel.from_xml_path(self.xml_path)
         self.data = mujoco.MjData(self.model)
         
-        self.freq = freq
-        self.model.opt.timestep = 1.0 / self.freq
+        # If freq is provided, override the XML timestep.
+        # Otherwise, derive freq from the XML's defined timestep.
+        if freq is not None:
+            self.freq = freq
+            self.model.opt.timestep = 1.0 / self.freq
+        else:
+            self.freq = int(round(1.0 / self.model.opt.timestep))
         
         self.render_mode = render_mode
         self.viewer = None

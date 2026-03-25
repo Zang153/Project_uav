@@ -20,7 +20,7 @@ class TrackCircularMujocoAviary(BaseRLMujocoAviary):
         
         self.max_steps = max_steps
         self.step_counter = 0
-        
+
         super().__init__(**kwargs)
         
     def _getTargetPos(self) -> np.ndarray:
@@ -74,15 +74,44 @@ class TrackCircularMujocoAviary(BaseRLMujocoAviary):
     def _computeReward(self) -> float:
         """
         Computes the reward to penalize distance from the dynamic target.
+        Includes penalties for jitter, action diff, and tilt to ensure smooth tracking.
         """
         target_pos = self._getTargetPos()
         current_pos = self.data.qpos[:3]
+        current_vel = self.data.qvel[:3]
+        current_ang_vel = self.data.qvel[3:6]
+        
+        quat = self.data.qpos[3:7]
+        w, qx, qy, qz = quat
+        up_z = 1.0 - 2.0 * (qx**2 + qy**2)
+        
         dist = np.linalg.norm(target_pos - current_pos)
         
-        # Penalize distance, encouraging the UAV to stay close to the target.
-        # Max reward of 2.0 when distance is 0, smoothly decreasing.
-        reward = float(np.max([0.0, 2.0 - dist**4]))
-        return reward
+        # 1. Base position reward
+        pos_reward = float(3.0 * np.exp(-3.0 * dist))
+        
+        # 2. Penalty for jitter and high angular velocity
+        ang_vel_penalty = 0.1 * np.linalg.norm(current_ang_vel)
+        
+        # 3. Penalty for high linear velocity (Relaxed compared to hover, since it needs to track)
+        lin_vel_penalty = 0.05 * np.linalg.norm(current_vel)
+        
+        # 4. Action smoothness penalty
+        action_diff_penalty = 0.0
+        if len(self.action_buffer) >= 2:
+            action_diff = self.action_buffer[-1] - self.action_buffer[-2]
+            action_diff_penalty = 0.2 * np.linalg.norm(action_diff)
+            
+        # 5. Posture penalty
+        tilt_penalty = 0.5 * (1.0 - up_z)
+            
+        reward = pos_reward - ang_vel_penalty - lin_vel_penalty - action_diff_penalty - tilt_penalty
+        
+        # Heavy penalty for staying on the ground
+        if current_pos[2] < 0.2:
+            reward -= 5.0
+            
+        return float(reward)
         
     def _computeTerminated(self) -> bool:
         """
@@ -100,8 +129,8 @@ class TrackCircularMujocoAviary(BaseRLMujocoAviary):
         current_pos = self.data.qpos[:3]
         x, y, z = current_pos
         
-        # Check boundaries (looser boundaries to allow following the circular path)
-        out_of_bounds = abs(x) > 3.0 or abs(y) > 3.0 or z > 4.0 or z < 0.0
+        # Check boundaries (looser boundaries to allow following the circular path, relax z lower bound)
+        out_of_bounds = abs(x) > 3.0 or abs(y) > 3.0 or z > 4.0 or z < -0.1
         
         # Check tilt
         quat = self.data.qpos[3:7]
@@ -120,11 +149,12 @@ class TrackCircularMujocoAviary(BaseRLMujocoAviary):
         Computes the info dictionary.
         """
         target_pos = self._getTargetPos()
-        current_pos = self.data.qpos[:3]
+        current_pos = self.data.qpos[:3].copy()
         dist = np.linalg.norm(target_pos - current_pos)
         
         return {
-            "target_pos": target_pos.tolist(),
-            "current_pos": current_pos.tolist(),
-            "tracking_error": float(dist)
+            "current_pos": current_pos,
+            "target_pos": target_pos,
+            "pos_error": float(dist),
+            "angular_velocity": self.data.qvel[3:6].copy()
         }

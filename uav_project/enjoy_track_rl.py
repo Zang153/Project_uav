@@ -1,18 +1,20 @@
 import os
 import sys
 import time
+import numpy as np
 
 # 确保能正确导入当前项目的包
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from stable_baselines3 import PPO
 from uav_project.rl_envs.TrackCircularMujocoAviary import TrackCircularMujocoAviary
+from uav_project.utils.logger import Logger
 
 def main():
     # 1. 找到我们训练好的最佳模型
     # 使用绝对路径或相对于项目根目录的路径，以避免工作目录带来的问题
-    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    model_path = os.path.join(project_root, "uav_project", "rl_results", "track_models", "best_model.zip")
+    project_dir = os.path.dirname(os.path.abspath(__file__))
+    model_path = os.path.join(project_dir, "rl_results", "track_models", "best_model.zip")
     
     if not os.path.exists(model_path):
         print(f"[ERROR] 找不到模型文件: {model_path}")
@@ -23,36 +25,96 @@ def main():
     # 2. 加载模型
     model = PPO.load(model_path)
 
-    # 3. 创建测试环境 (这里我们需要开启渲染)
-    # 注意：在实例化时传入 render_mode="human" 才能开启画面
-    print("[INFO] 初始化测试环境...")
+    # 3. 测试配置
+    NUM_TESTS = 3
+    TEST_DURATION = 15.0 
+    
+    print(f"[INFO] 初始化测试环境，共进行 {NUM_TESTS} 次测试，每次 {TEST_DURATION} 秒...")
+
     env = TrackCircularMujocoAviary(render_mode="human")
 
-    # 4. 测试循环
-    obs, info = env.reset()
-    
-    print("[INFO] 开始测试...")
-    for i in range(1000): # 运行 1000 步看看效果
-        # 使用模型预测动作
-        # deterministic=True 表示使用确定性策略（直接输出最大概率的动作，不随机采样）
-        action, _states = model.predict(obs, deterministic=True)
-        
-        # 将动作输入到环境中
-        obs, reward, terminated, truncated, info = env.step(action)
-        
-        # 渲染画面 (如果你在 BaseMujocoAviary 中实现了 viewer)
-        env.render()
-        
-        # 为了让人眼能看清，稍微睡一下 (对应 30Hz 控制频率)
-        time.sleep(1/30.0)
+    # 获取控制频率，计算总步数和渲染间隔
+    control_freq = getattr(env, "control_freq", 100)
+    test_steps = int(TEST_DURATION * control_freq)
+    TARGET_FPS = 30
+    render_interval = max(1, int(control_freq / TARGET_FPS)) 
 
-        # 如果无人机飞出界了，或者到达目标了，重置环境
-        if terminated or truncated:
-            print(f"[INFO] 回合结束 (步数: {i}). 重置环境...")
-            obs, info = env.reset()
+    # 4. 运行多次测试循环
+    for test_idx in range(1, NUM_TESTS + 1):
+        print(f"\n==================================================")
+        print(f"[INFO] 开始测试 {test_idx}/{NUM_TESTS}")
+        print(f"==================================================")
+        
+        obs, info = env.reset()
+        logger = Logger()
+        
+        episode_start_time = time.time()
+        steps_in_current_episode = 0
+        
+        for i in range(test_steps):
+            # 使用模型预测动作
+            action, _states = model.predict(obs, deterministic=True)
+            
+            # 将动作输入到环境中
+            obs, reward, terminated, truncated, info = env.step(action)
+            steps_in_current_episode += 1
+            sim_time = steps_in_current_episode / control_freq
+            
+            # --- 数据记录 (Logging) ---
+            current_pos = info.get("current_pos", env.data.qpos[:3].copy())
+            current_vel = env.data.qvel[:3].copy()
+            current_quat = env.data.qpos[3:7].copy()
+            current_ang_vel = env.data.qvel[3:6].copy()
+            target_pos = info.get("target_pos", np.array([0, 0, 1.0]))
+            
+            logger.log(
+                time=sim_time,
+                position=current_pos,
+                velocity=current_vel,
+                attitude_quat=current_quat,
+                angle_rate=current_ang_vel,
+                target_pos=target_pos,
+                target_vel=np.zeros(3),
+                target_att_quat=np.array([1, 0, 0, 0]),
+                target_rate=np.zeros(3),
+                motor_thrusts=np.zeros(4),
+                mixer_outputs=np.zeros(6),
+                delta_des_pos=np.zeros(3),
+                delta_actual_pos=np.zeros(3)
+            )
+            
+            # --- 终端输出 ---
+            if steps_in_current_episode % 10 == 0:
+                dist_err = info.get("pos_error", np.linalg.norm(target_pos - current_pos))
+                print(f"\r[测试 {test_idx} | 步数 {steps_in_current_episode:4d}] "
+                      f"位置: ({current_pos[0]: 5.2f}, {current_pos[1]: 5.2f}, {current_pos[2]: 5.2f}) | "
+                      f"目标: ({target_pos[0]: 5.2f}, {target_pos[1]: 5.2f}, {target_pos[2]: 5.2f}) | "
+                      f"误差: {dist_err:5.3f}m ", end="")
+            
+            # --- 渲染画面 ---
+            if i % render_interval == 0:
+                env.render()
+
+            if terminated or truncated:
+                print(f"\n[INFO] 触发终止条件，提前结束。")
+                break
+
+        # 单次测试结束统计
+        episode_end_time = time.time()
+        real_time_elapsed = episode_end_time - episode_start_time
+        sim_time_elapsed = steps_in_current_episode / control_freq
+        
+        print(f"\n[INFO] 测试 {test_idx} 结束.")
+        print(f"       - 仿真耗时: {sim_time_elapsed:.2f}s")
+        print(f"       - 真实耗时: {real_time_elapsed:.2f}s")
+        
+        # 保存图表
+        plot_path = os.path.join(project_dir, f'rl_track_test_{test_idx}.png')
+        logger.plot_results(save_path=plot_path)
+        print(f"[INFO] 性能曲线已保存至 {plot_path}")
 
     env.close()
-    print("[INFO] 测试结束.")
+    print("\n[INFO] 所有测试完成.")
 
 if __name__ == "__main__":
     main()

@@ -27,7 +27,7 @@ def main():
     model = PPO.load(model_path)
 
     # 3. Test Configuration
-    NUM_TESTS = 3
+    NUM_TESTS = 5
     TEST_DURATION = 15.0 
     
     print(f"[INFO] Initializing test environment for {NUM_TESTS} tests, each lasting {TEST_DURATION}s...")

@@ -2,7 +2,7 @@
 <mujoco model="Delta">
   
   <compiler angle="radian" meshdir="assets" />
-  <option timestep="0.0001" gravity="0 0 -9.81" integrator="implicit" iterations="100" density="1" viscosity="1e-5" />
+  <option timestep="0.001" gravity="0 0 -9.81" integrator="implicit" iterations="100" density="1" viscosity="1e-5" />
 
   <default>
     <joint type="hinge" frictionloss="0.0001" damping="0.00005" limited="true" range="-3.14 3.14" />

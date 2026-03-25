@@ -11,9 +11,9 @@ class HoverDeltaMujocoAviary(BaseRLMujocoAviary):
         self.TARGET_POS = np.array([0, 0, 1.5], dtype=np.float32)
         
         # BaseMujocoAviary takes xml_path, not model_filename
-        # We also set freq=10000 to ensure timestep is 0.0001 (1/10000) for the Delta model
+        # We rely on the timestep defined in Delta.xml (0.0001s)
         xml_path = f"../meshes/{model_filename}"
-        super().__init__(xml_path=xml_path, freq=10000, **kwargs)
+        super().__init__(xml_path=xml_path, **kwargs)
         
         # max_steps is calculated dynamically based on control_freq and the provided episode_duration
         self.episode_duration = episode_duration

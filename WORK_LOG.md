@@ -159,4 +159,31 @@
 
 ---
 
+## 2026-03-25
+
+### 1. 强化学习基础框架规范化与对齐 (RL Framework Standardization)
+- **测试/评估管线工程化升级**：重构了早期单机任务的测试脚本 (`enjoy_rl.py` 和 `enjoy_track_rl.py`)，使其完全对齐抗扰动任务 (`enjoy_disturbance_hover_rl.py`) 的高标准工程架构：
+  - 引入规范的多回合测试流程（如 `NUM_TESTS`、`TEST_DURATION`）。
+  - 废弃强制 `time.sleep()`，改用基于控制频率计算的“抽帧渲染”机制，彻底释放物理引擎算力。
+  - 全面集成 `Logger` 模块，实现所有测试流程的数据落盘与自动化图表生成。
+- **训练管线统一与多进程加速**：更新 `train_rl.py` 和 `train_track_rl.py`：
+  - 弃用单进程的 `DummyVecEnv`，全面升级为 `SubprocVecEnv` (32核并行)，大幅缩短数据采样时间。
+  - 引入全局配置 (`config.py`) 动态计算 `total_timesteps` 和评估频率。
+  - 统一禁用提前停止 (`reward_threshold=np.inf`) 并引入 `TimeLoggerCallback` 以实时监控训练 ETA 进度。
+- **重塑早期任务的奖励函数**：将单机悬停与轨迹跟踪环境的 `_computeReward` 和 `_computeTruncated` 逻辑升级为抗扰动任务的最新“严苛”标准。引入基于指数衰减的位置奖励，并增加针对线速度、角速度、动作突变及姿态倾斜的显式惩罚项，从根源上消除了无人机高频震荡和“横冲直撞”的次优策略。
+
+### 2. 物理引擎步长 (Timestep) 与控制频率解耦架构优化
+- **核心问题解决**：发现了之前所有无机械臂模型 (`UAV.xml`) 被默认降级到 100Hz (0.01s) 物理更新率导致动力学积分粗糙的问题。
+- **基于第一性原理的架构修正 (Single Source of Truth)**：
+  - 废除了在 Python 代码中硬编码传入 `freq` 覆盖物理引擎精度的错误做法。
+  - 确立 **XML 文件为物理属性的唯一真实来源**：在 `UAV.xml` 中将 `timestep` 定义为 `0.001` (1000Hz)，在 `Delta.xml` 中保持 `0.0001` (10000Hz)。
+  - 重构 `BaseMujocoAviary.__init__`：自动读取 `self.model.opt.timestep` 并转换为物理运行频率 `self.freq`。
+- **完美的齿轮比映射**：上层强化学习网络仍由 `config.py` 中的 `RL_CONTROL_FREQ = 100` 决定（100Hz），底层环境 (`BaseRLMujocoAviary`) 会自动计算并执行 `physics_steps_per_control = int(self.freq / self.control_freq)`。这保证了不同复杂度模型能在各自最适宜的物理精度下计算，且对上层 AI 智能体完全透明。
+
+### 3. 排查并明确 `__init__` 与 `reset` 调用的初始化时序问题
+- 分析了 Gymnasium `make_vec_env` 实例化期间自动调用 `reset()`（进而调用 `_computeObs`）可能导致的类属性缺失报错（即 Dirty Pattern 小瑕疵）。
+- 确认当前项目通过在子类中预设 `if not hasattr(self, 'uav'):` 保护逻辑，以及在 `BaseRLMujocoAviary` 顶层提前赋值 `self.control_freq` 的做法已经实现了安全的降级防御（Fallback），保证了多进程环境初始化的绝对稳定。
+
+---
+
 *注：本次更新标志着 UAV-Delta 仿真核心控制链路的 PyTorch 化重构基本完成，并成功跑通了首个基于 MuJoCo 的强化学习单机悬停模型训练与渲染闭环。*

@@ -15,7 +15,7 @@ class DisturbanceHoverDeltaMujocoAviary(BaseRLMujocoAviary):
         self.TARGET_POS = np.array([0, 0, 1.5], dtype=np.float32)
         
         xml_path = f"../meshes/{model_filename}"
-        super().__init__(xml_path=xml_path, freq=10000, **kwargs)
+        super().__init__(xml_path=xml_path, **kwargs)
         
         self.episode_duration = episode_duration
         self.max_steps = int(self.episode_duration * self.control_freq)

@@ -1,66 +1,134 @@
 import os
 import sys
+import time
+import numpy as np
 
 # 确保能正确导入当前项目的包
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from stable_baselines3 import PPO
 from stable_baselines3.common.env_util import make_vec_env
-from stable_baselines3.common.callbacks import EvalCallback, StopTrainingOnRewardThreshold
+from stable_baselines3.common.vec_env import SubprocVecEnv
+from stable_baselines3.common.callbacks import EvalCallback, StopTrainingOnRewardThreshold, BaseCallback
 from uav_project.rl_envs.TrackCircularMujocoAviary import TrackCircularMujocoAviary
+from uav_project.config import RL_EVAL_FREQ_SEC, RL_TOTAL_TRAIN_SEC, RL_EPISODE_DURATION
+
+class TimeLoggerCallback(BaseCallback):
+    """
+    Custom callback for logging the real time elapsed, ETA, and progress.
+    """
+    def __init__(self, total_timesteps: int, n_envs: int, n_steps: int, verbose=0):
+        super().__init__(verbose)
+        self.total_timesteps = total_timesteps
+        self.steps_per_iteration = n_envs * n_steps
+        self.total_iterations = total_timesteps // self.steps_per_iteration
+        
+        self.training_start_time = None
+        self.iteration_start_time = None
+        self.iteration_count = 0
+
+    def _on_training_start(self) -> None:
+        self.training_start_time = time.time()
+        self.iteration_start_time = time.time()
+        print(f"\n[INFO] Training started at {time.strftime('%X')}")
+        print(f"[INFO] Total Iterations to complete: {self.total_iterations}")
+
+    def _on_step(self) -> bool:
+        return True
+
+    def _on_training_end(self) -> None:
+        total_elapsed = time.time() - self.training_start_time
+        hours, rem = divmod(total_elapsed, 3600)
+        minutes, seconds = divmod(rem, 60)
+        print(f"\n[INFO] Training finished at {time.strftime('%X')}")
+        print(f"[INFO] Total time spent: {int(hours)}h {int(minutes)}m {int(seconds)}s")
+        
+    def on_rollout_start(self) -> None:
+        if self.iteration_start_time is not None:
+            current_time = time.time()
+            elapsed = current_time - self.iteration_start_time
+            self.iteration_count += 1
+            
+            total_elapsed = current_time - self.training_start_time
+            avg_time_per_iter = total_elapsed / self.iteration_count
+            remaining_iters = self.total_iterations - self.iteration_count
+            eta_seconds = remaining_iters * avg_time_per_iter
+            
+            eta_h, eta_rem = divmod(eta_seconds, 3600)
+            eta_m, eta_s = divmod(eta_rem, 60)
+            
+            progress = (self.iteration_count / self.total_iterations) * 100
+            
+            print(f"\n[TIME] Iteration {self.iteration_count}/{self.total_iterations} ({progress:.1f}%) completed in {elapsed:.2f}s. "
+                  f"ETA: {int(eta_h)}h {int(eta_m)}m {int(eta_s)}s")
+            
+        self.iteration_start_time = time.time()
 
 def main():
     # 1. 定义保存路径
-    save_path = "./rl_results/track_models/"
-    log_path = "./rl_results/track_logs/"
+    project_dir = os.path.dirname(os.path.abspath(__file__))
+    save_path = os.path.join(project_dir, "rl_results", "track_models")
+    log_path = os.path.join(project_dir, "rl_results", "track_logs")
     os.makedirs(save_path, exist_ok=True)
     os.makedirs(log_path, exist_ok=True)
 
     print("[INFO] 初始化环境...")
+    
     # 2. 创建向量化环境 (Vectorized Environment)
-    # n_envs=4 表示同时开启 4 个仿真环境并行收集数据，大大加快训练速度
-    env = make_vec_env(TrackCircularMujocoAviary, n_envs=4)
+    num_envs = 32
+    
+    env_kwargs = {"max_steps": int(RL_EPISODE_DURATION * 100)}
+    
+    # 使用 SubprocVecEnv 以实现真正的多进程并行加速
+    env = make_vec_env(TrackCircularMujocoAviary, n_envs=num_envs, vec_env_cls=SubprocVecEnv, env_kwargs=env_kwargs)
 
     # 3. 创建评估环境与回调函数
-    # 训练过程中，我们需要一个独立的环境来测试模型当前的能力，以保存最好的模型
-    eval_env = make_vec_env(TrackCircularMujocoAviary, n_envs=1)
+    eval_env = make_vec_env(TrackCircularMujocoAviary, n_envs=1, vec_env_cls=SubprocVecEnv, env_kwargs=env_kwargs)
     
-    # 当模型的平均奖励达到某个阈值时，自动停止训练（可选）
-    callback_on_best = StopTrainingOnRewardThreshold(reward_threshold=1800, verbose=1)
+    # 禁用提前停止，让模型充分训练
+    callback_on_best = StopTrainingOnRewardThreshold(reward_threshold=np.inf, verbose=1)
     
-    # 评估回调：每 10000 步评估一次，保存表现最好的模型到 save_path
+    control_freq = eval_env.get_attr('control_freq')[0]
+    eval_freq_steps = int(RL_EVAL_FREQ_SEC * control_freq)
+    
+    # 跟踪任务较难，增加训练时长
+    total_train_steps = int(RL_TOTAL_TRAIN_SEC * 3 * control_freq)
+
     eval_callback = EvalCallback(
         eval_env,
         callback_on_new_best=callback_on_best,
         best_model_save_path=save_path,
         log_path=log_path,
-        eval_freq=10000,
-        deterministic=True, # 测试时使用确定性动作，而不是随机采样
+        eval_freq=eval_freq_steps,
+        deterministic=True,
         render=False
+    )
+    
+    n_steps = 4096
+    time_callback = TimeLoggerCallback(
+        total_timesteps=total_train_steps, 
+        n_envs=num_envs, 
+        n_steps=n_steps
     )
 
     print("[INFO] 初始化 PPO 模型...")
     # 4. 初始化 PPO 模型
-    # MlpPolicy: 表示使用多层感知机 (全连接神经网络)
-    # tensorboard_log: 用于后续使用 Tensorboard 查看训练曲线
-    # device="cpu" 强制使用 CPU 进行训练，避免因为驱动崩溃导致的 CUDA error
     model = PPO(
         "MlpPolicy",
         env,
         verbose=1,
         tensorboard_log=log_path,
         learning_rate=3e-4,
-        n_steps=2048,
-        batch_size=64,
+        n_steps=n_steps,
+        batch_size=256,
         n_epochs=10,
-        device="cuda"
+        device="cpu"
     )
 
     print("[INFO] 开始训练...")
     # 5. 开始训练
-    # total_timesteps 是与环境交互的总步数
     try:
-        model.learn(total_timesteps=1_000_000, callback=eval_callback)
+        model.learn(total_timesteps=total_train_steps, callback=[time_callback, eval_callback])
     except KeyboardInterrupt:
         print("\n[INFO] 用户手动中断了训练。")
 
