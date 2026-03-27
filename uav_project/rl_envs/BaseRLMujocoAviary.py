@@ -1,13 +1,12 @@
 import os
 import gymnasium as gym
 import numpy as np
-from abc import ABC
 from collections import deque
 
 from .BaseMujocoAviary import BaseMujocoAviary
 from ..config import MASS, GRAVITY, CT, RL_CONTROL_FREQ
 
-class BaseRLMujocoAviary(BaseMujocoAviary, ABC):
+class BaseRLMujocoAviary(BaseMujocoAviary):
     """
     Base class for Reinforcement Learning in MuJoCo UAV environments.
     Adds action spaces, observation spaces, and an action history buffer.
@@ -18,7 +17,7 @@ class BaseRLMujocoAviary(BaseMujocoAviary, ABC):
         
         self.action_buffer = deque(maxlen=self.act_hist_len)
         
-        # Superclass init will call _actionSpace and _observationSpace
+        # Load model and initialize basic properties
         super().__init__(**kwargs)
         
         if hover_rpm is None:
@@ -38,15 +37,24 @@ class BaseRLMujocoAviary(BaseMujocoAviary, ABC):
         # Calculate how many physics steps to run per RL action step
         self.physics_steps_per_control = int(self.freq / self.control_freq)
 
+        # Safely assign spaces AFTER all model properties are initialized
+        # This prevents the dirty pattern of calling _observationSpace inside the parent's __init__
+        self.action_space = self._actionSpace()
+        self.observation_space = self._observationSpace()
+
     def reset(self, seed=None, options=None):
         """Resets the environment and the action buffer."""
         # Call super first to reset mujoco data
         super().reset(seed=seed, options=options)
         
         self.action_buffer.clear()
+        
+        # Use action_space shape to define buffer size, fallback to model.nu if not set yet
+        act_dim = self.action_space.shape[0] if self.action_space is not None else self.model.nu
+        
         # Initialize buffer with zeros
         for _ in range(self.act_hist_len):
-            self.action_buffer.append(np.zeros(self.model.nu, dtype=np.float32))
+            self.action_buffer.append(np.zeros(act_dim, dtype=np.float32))
             
         self.step_counter = 0
             
@@ -149,11 +157,14 @@ class BaseRLMujocoAviary(BaseMujocoAviary, ABC):
         vel = self.data.qvel[:3].copy()
         ang_vel = self.data.qvel[3:6].copy()
         
+        # Use action_space shape to define buffer size, fallback to model.nu
+        act_dim = self.action_space.shape[0] if self.action_space is not None else self.model.nu
+        
         # Action buffer
         if len(self.action_buffer) < self.act_hist_len:
             pad_len = self.act_hist_len - len(self.action_buffer)
             for _ in range(pad_len):
-                self.action_buffer.append(np.zeros(self.model.nu, dtype=np.float32))
+                self.action_buffer.append(np.zeros(act_dim, dtype=np.float32))
                 
         act_buf = np.concatenate(self.action_buffer)
         

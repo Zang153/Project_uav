@@ -9,9 +9,8 @@ from stable_baselines3 import PPO
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.vec_env import SubprocVecEnv
 from stable_baselines3.common.callbacks import EvalCallback, StopTrainingOnRewardThreshold, BaseCallback
-import numpy as np
 from uav_project.rl_envs.DisturbanceHoverDeltaMujocoAviary import DisturbanceHoverDeltaMujocoAviary
-from uav_project.config import RL_EVAL_FREQ_SEC, RL_TOTAL_TRAIN_SEC, RL_EPISODE_DURATION
+from uav_project.config import TRAINING_CONFIGS
 
 class TimeLoggerCallback(BaseCallback):
     """
@@ -67,40 +66,43 @@ class TimeLoggerCallback(BaseCallback):
         self.iteration_start_time = time.time()
 
 def main():
+    # 0. Load Task Config
+    cfg = TRAINING_CONFIGS["disturbance_hover"]
+
     project_dir = os.path.dirname(os.path.abspath(__file__))
     # 1. Define save paths
-    save_path = os.path.join(project_dir, "rl_results", "disturbance_hover_models")
-    log_path = os.path.join(project_dir, "rl_results", "disturbance_hover_logs")
+    save_path = os.path.join(project_dir, "rl_results", cfg["model_save_dir"])
+    log_path = os.path.join(project_dir, "rl_results", cfg["log_save_dir"])
     os.makedirs(save_path, exist_ok=True)
     os.makedirs(log_path, exist_ok=True)
 
     print("[INFO] Initializing environment...")
+    # --- Training Render Toggle ---
     RENDER_TRAINING = False
     render_mode = "human" if RENDER_TRAINING else None
 
     # 2. Create Vectorized Environment
-    num_envs = 32
+    num_envs = cfg["num_envs"]
     
     env_kwargs = {
         "render_mode": render_mode,
-        "episode_duration": RL_EPISODE_DURATION
+        "episode_duration": cfg["episode_duration_sec"]
     }
+    
+    if len(sys.argv) > 1:
+        env_kwargs["model_filename"] = sys.argv[1]
+        
     env = make_vec_env(DisturbanceHoverDeltaMujocoAviary, n_envs=num_envs, vec_env_cls=SubprocVecEnv, env_kwargs=env_kwargs)
 
     # 3. Create evaluation environment and callbacks
-    eval_env_kwargs = {"episode_duration": RL_EPISODE_DURATION}
-    eval_env = make_vec_env(DisturbanceHoverDeltaMujocoAviary, n_envs=1, vec_env_cls=SubprocVecEnv, env_kwargs=eval_env_kwargs)
+    eval_env = make_vec_env(DisturbanceHoverDeltaMujocoAviary, n_envs=1, vec_env_cls=SubprocVecEnv, env_kwargs=env_kwargs)
     
-    # We want to force it to train fully, so we set a practically unreachable reward threshold
-    # or just disable the threshold stopping by setting it to infinity
-    callback_on_best = StopTrainingOnRewardThreshold(reward_threshold=np.inf, verbose=1)
+    callback_on_best = StopTrainingOnRewardThreshold(reward_threshold=cfg["reward_threshold"], verbose=1)
     
     control_freq = eval_env.get_attr('control_freq')[0]
-    eval_freq_steps = int(RL_EVAL_FREQ_SEC * control_freq)
+    eval_freq_steps = int(cfg["eval_freq_sec"] * control_freq)
     
-    # Increase training time significantly due to the more complex Cartesian disturbance space
-    increased_train_sec = RL_TOTAL_TRAIN_SEC * 5 # Train for much longer to ensure robustness
-    total_train_steps = int(increased_train_sec * control_freq)
+    total_train_steps = int(cfg["total_train_sec"] * control_freq)
 
     eval_callback = EvalCallback(
         eval_env,
@@ -112,7 +114,7 @@ def main():
         render=False
     )
     
-    n_steps = 4096
+    n_steps = cfg["n_steps"]
     time_callback = TimeLoggerCallback(
         total_timesteps=total_train_steps, 
         n_envs=num_envs, 
@@ -126,21 +128,22 @@ def main():
         env,
         verbose=1,
         tensorboard_log=log_path,
-        learning_rate=3e-4,
+        learning_rate=cfg["learning_rate"],
         n_steps=n_steps,
-        batch_size=256,
-        n_epochs=10,
+        batch_size=cfg["batch_size"],
+        n_epochs=cfg["n_epochs"],
         device="cpu"
     )
 
     print("[INFO] Starting training...")
+    # 5. Start training
     try:
         model.learn(total_timesteps=total_train_steps, callback=[time_callback, eval_callback])
     except KeyboardInterrupt:
         print("\n[INFO] User manually interrupted training.")
 
     # 6. Save final model
-    final_model_path = os.path.join(save_path, "ppo_disturbance_hover_final")
+    final_model_path = os.path.join(save_path, cfg["model_name"])
     model.save(final_model_path)
     print(f"[INFO] Training finished. Final model saved to: {final_model_path}")
     print(f"[INFO] Best model saved to: {os.path.join(save_path, 'best_model.zip')}")

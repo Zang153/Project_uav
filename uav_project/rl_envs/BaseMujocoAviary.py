@@ -34,9 +34,9 @@ class BaseMujocoAviary(gym.Env, ABC):
         self.viewer = None
         self.renderer = None
         
-        # Initialize Spaces (must be implemented by subclasses)
-        self.action_space = self._actionSpace()
-        self.observation_space = self._observationSpace()
+        # Spaces will be explicitly set by subclasses
+        self.action_space = None
+        self.observation_space = None
         
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
@@ -111,42 +111,34 @@ class BaseMujocoAviary(gym.Env, ABC):
             self.renderer.close()
             self.renderer = None
 
-    @abstractmethod
     def _actionSpace(self) -> gym.Space:
         """Returns the action space of the environment."""
-        pass
+        raise NotImplementedError
 
-    @abstractmethod
     def _observationSpace(self) -> gym.Space:
         """Returns the observation space of the environment."""
-        pass
+        raise NotImplementedError
 
-    @abstractmethod
     def _computeObs(self) -> np.ndarray:
         """Computes and returns the current observation."""
-        pass
+        raise NotImplementedError
 
-    @abstractmethod
     def _preprocessAction(self, action: np.ndarray) -> np.ndarray:
         """Pre-processes the action passed to `.step()`."""
-        pass
+        raise NotImplementedError
 
-    @abstractmethod
     def _computeReward(self) -> float:
         """Computes the current reward value."""
-        pass
+        raise NotImplementedError
 
-    @abstractmethod
     def _computeTerminated(self) -> bool:
         """Computes the current terminated state."""
-        pass
+        raise NotImplementedError
 
-    @abstractmethod
     def _computeTruncated(self) -> bool:
         """Computes the current truncated state."""
-        pass
+        raise NotImplementedError
 
-    @abstractmethod
     def _computeInfo(self) -> dict:
         """Computes the current info dict."""
-        pass
+        raise NotImplementedError

@@ -18,15 +18,6 @@ class HoverDeltaMujocoAviary(BaseRLMujocoAviary):
         # max_steps is calculated dynamically based on control_freq and the provided episode_duration
         self.episode_duration = episode_duration
         self.max_steps = int(self.episode_duration * self.control_freq)
-        self.step_counter = 0
-        
-    def reset(self, seed=None, options=None):
-        # BaseRLMujocoAviary handles the step_counter reset now
-        return super().reset(seed=seed, options=options)
-        
-    def step(self, action):
-        # BaseRLMujocoAviary handles the step_counter increment now
-        return super().step(action)
         
     def _actionSpace(self) -> gym.Space:
         """

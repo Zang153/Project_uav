@@ -19,13 +19,10 @@ class DisturbanceHoverDeltaMujocoAviary(BaseRLMujocoAviary):
         
         self.episode_duration = episode_duration
         self.max_steps = int(self.episode_duration * self.control_freq)
-        self.step_counter = 0
 
         # Define internal arm movement state in Cartesian space
         self.trajectory_generator = DeltaRandomTrajectoryGenerator(rod_b=0.1, rod_ee=0.2, r_b=0.074577, r_ee=0.02495)
         self.external_arm_action = None
-        
-        self.sim_time = 0.0
 
     def set_external_arm_action(self, arm_action: np.ndarray):
         """Allows an external controller to dictate the arm movement during testing."""
@@ -34,26 +31,11 @@ class DisturbanceHoverDeltaMujocoAviary(BaseRLMujocoAviary):
     def reset(self, seed=None, options=None):
         # Randomize arm disturbance parameters on each reset
         self.trajectory_generator.reset()
-        self.sim_time = 0.0
         
-        # Override action buffer to store 4D actions before calling super().reset()
-        # because super().reset() might try to fill it with 7D (self.model.nu) actions.
-        # Actually, super().reset() CLEARS and fills the buffer with self.model.nu zeros!
-        # So we MUST intercept this.
+        # Super reset handles the Mujoco data and action buffer clearing
         obs, info = super().reset(seed=seed, options=options)
         
-        # Now re-fix the action buffer after super().reset() broke it
-        self.action_buffer.clear()
-        for _ in range(self.act_hist_len):
-            self.action_buffer.append(np.zeros(4, dtype=np.float32))
-            
-        # Re-compute observation with the correct 4D buffer
-        obs = self._computeObs()
-            
         return obs, info
-        
-    def step(self, action):
-        return super().step(action)
         
     def _actionSpace(self) -> gym.Space:
         """
@@ -71,14 +53,10 @@ class DisturbanceHoverDeltaMujocoAviary(BaseRLMujocoAviary):
         """
         Defines the flattened kinematic observation space + action buffer.
         """
-        # We need to manually match exactly what _computeObs returns
-        # For DisturbanceHoverDeltaMujocoAviary, we have:
-        # qpos is 41 for Delta, qvel is 39
-        # Buffer is 4D (rotors) * act_hist_len (2) = 8
-        # Total = 41 + 39 + 8 = 88
-        obs_dim = 88
+        state_dim = self.model.nq + self.model.nv
+        buffer_dim = self.act_hist_len * 4  # ONLY 4 rotor actions
+        obs_dim = state_dim + buffer_dim
         
-        # Ensure the observation space limits match the computed dimension
         return gym.spaces.Box(
             low=-np.inf, 
             high=np.inf, 
@@ -114,11 +92,11 @@ class DisturbanceHoverDeltaMujocoAviary(BaseRLMujocoAviary):
         if self.external_arm_action is not None:
             arm_action = self.external_arm_action
         else:
-            # Update sim time
-            self.sim_time += (1.0 / self.control_freq)
+            # Calculate current sim time based on the base class's step_counter
+            current_sim_time = self.step_counter / self.control_freq
             
             # Use the standalone trajectory generator
-            _, arm_action = self.trajectory_generator.get_state(self.sim_time)
+            _, arm_action = self.trajectory_generator.get_state(current_sim_time)
             
         processed_action = np.concatenate([rotor_action, arm_action])
         return processed_action.astype(np.float32)

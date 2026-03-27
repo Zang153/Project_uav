@@ -6,20 +6,13 @@ class HoverMujocoAviary(BaseRLMujocoAviary):
     Hover task environment for MuJoCo UAV.
     The goal is to hover at a target position [0, 0, 1].
     """
-    def __init__(self, max_steps=1000, **kwargs):
+    def __init__(self, episode_duration=10.0, **kwargs):
         self.TARGET_POS = np.array([0, 0, 1], dtype=np.float32)
-        self.max_steps = max_steps
-        self.step_counter = 0
         
         super().__init__(**kwargs)
         
-    def reset(self, seed=None, options=None):
-        self.step_counter = 0
-        return super().reset(seed=seed, options=options)
-        
-    def step(self, action):
-        self.step_counter += 1
-        return super().step(action)
+        self.episode_duration = episode_duration
+        self.max_steps = int(self.episode_duration * self.control_freq)
         
     def _computeReward(self) -> float:
         """

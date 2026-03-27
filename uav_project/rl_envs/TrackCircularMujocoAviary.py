@@ -8,7 +8,7 @@ class TrackCircularMujocoAviary(BaseRLMujocoAviary):
     The goal is to track a dynamic target moving in a circular trajectory.
     """
     def __init__(self, 
-                 max_steps=2000, 
+                 episode_duration=20.0, 
                  center=np.array([0.0, 0.0, 1.0]),
                  radius=1.0,
                  angular_velocity=0.5,
@@ -17,11 +17,11 @@ class TrackCircularMujocoAviary(BaseRLMujocoAviary):
         self.center = np.array(center, dtype=np.float32)
         self.radius = float(radius)
         self.angular_velocity = float(angular_velocity)
-        
-        self.max_steps = max_steps
-        self.step_counter = 0
 
         super().__init__(**kwargs)
+        
+        self.episode_duration = episode_duration
+        self.max_steps = int(self.episode_duration * self.control_freq)
         
     def _getTargetPos(self) -> np.ndarray:
         """
@@ -32,14 +32,6 @@ class TrackCircularMujocoAviary(BaseRLMujocoAviary):
         y = self.center[1] + self.radius * np.sin(self.angular_velocity * t)
         z = self.center[2]
         return np.array([x, y, z], dtype=np.float32)
-
-    def reset(self, seed=None, options=None):
-        self.step_counter = 0
-        return super().reset(seed=seed, options=options)
-        
-    def step(self, action):
-        self.step_counter += 1
-        return super().step(action)
         
     def _observationSpace(self) -> gym.Space:
         """

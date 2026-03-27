@@ -11,7 +11,7 @@ from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.vec_env import SubprocVecEnv
 from stable_baselines3.common.callbacks import EvalCallback, StopTrainingOnRewardThreshold, BaseCallback
 from uav_project.rl_envs.TrackCircularMujocoAviary import TrackCircularMujocoAviary
-from uav_project.config import RL_EVAL_FREQ_SEC, RL_TOTAL_TRAIN_SEC, RL_EPISODE_DURATION
+from uav_project.config import TRAINING_CONFIGS
 
 class TimeLoggerCallback(BaseCallback):
     """
@@ -65,19 +65,22 @@ class TimeLoggerCallback(BaseCallback):
         self.iteration_start_time = time.time()
 
 def main():
+    # 0. Load Task Config
+    cfg = TRAINING_CONFIGS["uav_track"]
+
     # 1. 定义保存路径
     project_dir = os.path.dirname(os.path.abspath(__file__))
-    save_path = os.path.join(project_dir, "rl_results", "track_models")
-    log_path = os.path.join(project_dir, "rl_results", "track_logs")
+    save_path = os.path.join(project_dir, "rl_results", cfg["model_save_dir"])
+    log_path = os.path.join(project_dir, "rl_results", cfg["log_save_dir"])
     os.makedirs(save_path, exist_ok=True)
     os.makedirs(log_path, exist_ok=True)
 
     print("[INFO] 初始化环境...")
     
     # 2. 创建向量化环境 (Vectorized Environment)
-    num_envs = 32
+    num_envs = cfg["num_envs"]
     
-    env_kwargs = {"max_steps": int(RL_EPISODE_DURATION * 100)}
+    env_kwargs = {"episode_duration": cfg["episode_duration_sec"]}
     
     # 使用 SubprocVecEnv 以实现真正的多进程并行加速
     env = make_vec_env(TrackCircularMujocoAviary, n_envs=num_envs, vec_env_cls=SubprocVecEnv, env_kwargs=env_kwargs)
@@ -86,13 +89,12 @@ def main():
     eval_env = make_vec_env(TrackCircularMujocoAviary, n_envs=1, vec_env_cls=SubprocVecEnv, env_kwargs=env_kwargs)
     
     # 禁用提前停止，让模型充分训练
-    callback_on_best = StopTrainingOnRewardThreshold(reward_threshold=np.inf, verbose=1)
+    callback_on_best = StopTrainingOnRewardThreshold(reward_threshold=cfg["reward_threshold"], verbose=1)
     
     control_freq = eval_env.get_attr('control_freq')[0]
-    eval_freq_steps = int(RL_EVAL_FREQ_SEC * control_freq)
+    eval_freq_steps = int(cfg["eval_freq_sec"] * control_freq)
     
-    # 跟踪任务较难，增加训练时长
-    total_train_steps = int(RL_TOTAL_TRAIN_SEC * 3 * control_freq)
+    total_train_steps = int(cfg["total_train_sec"] * control_freq)
 
     eval_callback = EvalCallback(
         eval_env,
@@ -104,7 +106,7 @@ def main():
         render=False
     )
     
-    n_steps = 4096
+    n_steps = cfg["n_steps"]
     time_callback = TimeLoggerCallback(
         total_timesteps=total_train_steps, 
         n_envs=num_envs, 
@@ -118,10 +120,10 @@ def main():
         env,
         verbose=1,
         tensorboard_log=log_path,
-        learning_rate=3e-4,
+        learning_rate=cfg["learning_rate"],
         n_steps=n_steps,
-        batch_size=256,
-        n_epochs=10,
+        batch_size=cfg["batch_size"],
+        n_epochs=cfg["n_epochs"],
         device="cpu"
     )
 
@@ -133,7 +135,7 @@ def main():
         print("\n[INFO] 用户手动中断了训练。")
 
     # 6. 保存最终模型
-    final_model_path = os.path.join(save_path, "ppo_track_final")
+    final_model_path = os.path.join(save_path, cfg["model_name"])
     model.save(final_model_path)
     print(f"[INFO] 训练结束。最终模型已保存至: {final_model_path}")
     print(f"[INFO] 表现最好的模型保存在: {os.path.join(save_path, 'best_model.zip')}")

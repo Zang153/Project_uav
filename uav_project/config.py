@@ -71,8 +71,81 @@ RATE_KD = np.array([0.005, 0.005, 0.001])
 # --- Output Limits ---
 # Can be added here if needed, currently handled in logic
 
-# --- Reinforcement Learning Settings ---
-RL_EPISODE_DURATION = 10.0  # seconds per episode (Note: actual max_steps is handled by gymnasium's TimeLimit if wrapped, or our internal counter)
-RL_EVAL_FREQ_SEC = 20.0     # evaluate every X seconds of simulation (increased for long training to save time)
-RL_TOTAL_TRAIN_SEC = 50000.0 # total simulation time for training (50,000s * 100Hz = 5,000,000 steps. ~28 hours of CPU time at 48fps)
+# --- Reinforcement Learning Global Settings ---
 RL_CONTROL_FREQ = 100       # RL agent decision frequency (Hz). If physics is 10000Hz, agent decides every 100 physics steps.
+
+# --- Reinforcement Learning Task Configurations ---
+# Dictionary to store hyper-parameters and config for each specific training task.
+# This centralizes all tuning parameters so they don't have to be hardcoded in train_*.py files.
+TRAINING_CONFIGS = {
+    "uav_hover": {
+        "num_envs": 32,
+        "n_steps": 4096,
+        "batch_size": 256,
+        "n_epochs": 10,
+        "learning_rate": 3e-4,
+        "episode_duration_sec": 10.0,
+        "eval_freq_sec": 20.0,
+        "total_train_sec": 100000.0, # e.g. 100,000s * 100Hz = 10,000,000 steps
+        "reward_threshold": np.inf,  # Disable early stopping
+        "model_save_dir": "models",
+        "log_save_dir": "logs",
+        "model_name": "ppo_hover_final"
+    },
+    "uav_track": {
+        "num_envs": 32,
+        "n_steps": 4096,
+        "batch_size": 256,
+        "n_epochs": 10,
+        "learning_rate": 3e-4,
+        "episode_duration_sec": 20.0,
+        "eval_freq_sec": 40.0,
+        "total_train_sec": 150000.0, # Tracking is harder, needs more time
+        "reward_threshold": np.inf,
+        "model_save_dir": "track_models",
+        "log_save_dir": "track_logs",
+        "model_name": "ppo_track_final"
+    },
+    "delta_hover": {
+        "num_envs": 32,
+        "n_steps": 4096,
+        "batch_size": 256,
+        "n_epochs": 10,
+        "learning_rate": 3e-4,
+        "episode_duration_sec": 10.0,
+        "eval_freq_sec": 20.0,
+        "total_train_sec": 100000.0,
+        "reward_threshold": np.inf,
+        "model_save_dir": "delta_hover_models",
+        "log_save_dir": "delta_hover_logs",
+        "model_name": "ppo_delta_hover_final"
+    },
+    "delta_track": {
+        "num_envs": 32,
+        "n_steps": 4096,
+        "batch_size": 256,
+        "n_epochs": 10,
+        "learning_rate": 3e-4,
+        "episode_duration_sec": 20.0,
+        "eval_freq_sec": 40.0,
+        "total_train_sec": 150000.0,
+        "reward_threshold": np.inf,
+        "model_save_dir": "delta_track_models",
+        "log_save_dir": "delta_track_logs",
+        "model_name": "ppo_delta_track_final"
+    },
+    "disturbance_hover": {
+        "num_envs": 32,
+        "n_steps": 4096,
+        "batch_size": 256,
+        "n_epochs": 10,
+        "learning_rate": 3e-4,
+        "episode_duration_sec": 15.0, # Needs longer duration to experience full disturbance cycle
+        "eval_freq_sec": 30.0,
+        "total_train_sec": 250000.0, # Much harder task, requires massive data to generalize over disturbance domains
+        "reward_threshold": np.inf,
+        "model_save_dir": "disturbance_hover_models",
+        "log_save_dir": "disturbance_hover_logs",
+        "model_name": "ppo_disturbance_hover_final"
+    }
+}

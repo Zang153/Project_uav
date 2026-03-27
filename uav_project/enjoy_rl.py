@@ -27,7 +27,7 @@ def main():
 
     # 3. 测试配置
     NUM_TESTS = 3
-    TEST_DURATION = 15.0 
+    TEST_DURATION = 25.0 
     
     print(f"[INFO] 初始化测试环境，共进行 {NUM_TESTS} 次测试，每次 {TEST_DURATION} 秒...")
 

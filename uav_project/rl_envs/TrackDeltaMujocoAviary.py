@@ -30,16 +30,8 @@ class TrackDeltaMujocoAviary(HoverDeltaMujocoAviary):
         # Instantiate UAVModel to easily access sensors like the end-effector position
         self.uav = UAVModel(self.model, self.data)
         
-        # Override observation space after UAVModel is initialized because
-        # super().__init__ calls _observationSpace which might depend on uav
-        # Actually, let's redefine the space explicitly here
-        base_obs_dim = self.model.nq + self.model.nv + self.act_hist_len * self.model.nu
-        self.observation_space = gym.spaces.Box(
-            low=-np.inf, 
-            high=np.inf, 
-            shape=(base_obs_dim + 9,), 
-            dtype=np.float32
-        )
+        # Override observation space after UAVModel is initialized
+        self.observation_space = self._observationSpace()
         
     def _getTargetEEPos(self) -> np.ndarray:
         """
@@ -76,8 +68,6 @@ class TrackDeltaMujocoAviary(HoverDeltaMujocoAviary):
         relative EE error, and target EE velocity.
         Original obs + target_ee_pos (3) + relative_ee_pos (3) + target_ee_vel (3)
         """
-        # Since this is called in super().__init__ before self.uav is ready, 
-        # we calculate dimensions dynamically based on model attributes
         state_dim = self.model.nq + self.model.nv
         buffer_dim = self.act_hist_len * self.model.nu
         obs_dim = state_dim + buffer_dim + 9  # +3 target_pos, +3 relative_pos, +3 target_vel
@@ -93,11 +83,6 @@ class TrackDeltaMujocoAviary(HoverDeltaMujocoAviary):
         """
         Computes the current observation, appending target EE position, relative EE position, and target EE velocity.
         """
-        # If uav is not initialized yet (e.g., during super().__init__ calls to reset)
-        if not hasattr(self, 'uav'):
-            base_obs = super()._computeObs()
-            return np.concatenate([base_obs, np.zeros(9)]).astype(np.float32)
-            
         base_obs = super()._computeObs()
         target_ee_pos = self._getTargetEEPos()
         current_ee_pos = self.uav.get_ee_sensor_pos()
@@ -115,10 +100,6 @@ class TrackDeltaMujocoAviary(HoverDeltaMujocoAviary):
         # UAV Hover Reward (from super class)
         uav_reward = super()._computeReward()
         
-        # If uav is not fully initialized yet
-        if not hasattr(self, 'uav'):
-            return uav_reward
-            
         # EE Tracking Reward
         target_ee_pos = self._getTargetEEPos()
         current_ee_pos = self.uav.get_ee_sensor_pos()
@@ -147,14 +128,10 @@ class TrackDeltaMujocoAviary(HoverDeltaMujocoAviary):
         tracking_target = self._getTargetEEPos()
         
         # Calculate arm tracking error
-        if hasattr(self, 'uav'):
-            ee_pos = self.uav.get_ee_sensor_pos()
-            track_error = np.linalg.norm(tracking_target - ee_pos)
-            info["ee_pos"] = ee_pos
-            info["track_error"] = float(track_error)
-        else:
-            info["ee_pos"] = np.zeros(3)
-            info["track_error"] = 0.0
+        ee_pos = self.uav.get_ee_sensor_pos()
+        track_error = np.linalg.norm(tracking_target - ee_pos)
+        info["ee_pos"] = ee_pos
+        info["track_error"] = float(track_error)
             
         info["tracking_target"] = tracking_target
         
